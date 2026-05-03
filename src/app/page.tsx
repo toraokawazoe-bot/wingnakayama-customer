@@ -68,12 +68,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/alerts").then((r) => r.json()),
-      fetch("/api/customers").then((r) => r.json()),
-      fetch("/api/bikes").then((r) => r.json()),
-      fetch("/api/invoices").then((r) => r.json()),
+      fetch("/api/alerts").then((r) => r.json()).catch(() => null),
+      fetch("/api/customers").then((r) => r.json()).catch(() => []),
+      fetch("/api/bikes").then((r) => r.json()).catch(() => []),
+      fetch("/api/invoices").then((r) => r.json()).catch(() => []),
     ]).then(([alerts, customers, bikes, invoices]) => {
-      setData(alerts);
+      setData(alerts?.overdue !== undefined ? alerts : { overdue: [], upcoming: [], future: [], total: 0 });
       setStats({
         customers: Array.isArray(customers) ? customers.length : 0,
         bikes: Array.isArray(bikes) ? bikes.length : 0,
