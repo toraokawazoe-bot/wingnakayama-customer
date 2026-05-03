@@ -1,14 +1,10 @@
-import { createClient, type Client } from '@libsql/client';
-
-let client: Client | null = null;
+import { createClient, type Client } from '@libsql/client/web';
 
 export function getDb(): Client {
-  if (!client) {
-    const url = process.env.TURSO_DATABASE_URL || 'file:local.db';
-    const authToken = process.env.TURSO_AUTH_TOKEN;
-    client = createClient({ url, authToken });
-  }
-  return client;
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL || 'file:local.db',
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
 }
 
 export async function initSchema() {

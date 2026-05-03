@@ -22,7 +22,8 @@ export default function InvoicesPage() {
   const load = () => {
     fetch("/api/invoices")
       .then((r) => r.json())
-      .then((data) => { setInvoices(data); setLoading(false); });
+      .then((data) => { setInvoices(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => { setInvoices([]); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);

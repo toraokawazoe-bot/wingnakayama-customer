@@ -35,7 +35,8 @@ export default function MaintenancePage() {
     const q = type !== "all" ? `?type=${encodeURIComponent(type)}` : "";
     fetch(`/api/maintenance${q}`)
       .then((r) => r.json())
-      .then((data) => { setRecords(data); setLoading(false); });
+      .then((data) => { setRecords(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => { setRecords([]); setLoading(false); });
   };
 
   useEffect(() => { load("all"); }, []);

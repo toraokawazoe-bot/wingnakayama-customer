@@ -22,7 +22,8 @@ export default function BikesPage() {
   useEffect(() => {
     fetch("/api/bikes")
       .then((r) => r.json())
-      .then((data) => { setBikes(data); setLoading(false); });
+      .then((data) => { setBikes(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => { setBikes([]); setLoading(false); });
   }, []);
 
   return (

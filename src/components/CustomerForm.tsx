@@ -51,7 +51,6 @@ export default function CustomerForm({ initial, customerId }: Props) {
     if (res.ok) {
       const data = await res.json();
       router.push(`/customers/${data.id}`);
-      router.refresh();
     } else {
       const err = await res.json();
       setError(err.error || "保存に失敗しました");

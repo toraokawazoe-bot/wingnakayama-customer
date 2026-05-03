@@ -36,7 +36,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     fetch(`/api/customers/${id}`)
       .then((r) => r.json())
-      .then((data) => { setCustomer(data); setLoading(false); });
+      .then((data) => { setCustomer(data?.id ? data : null); setLoading(false); })
+      .catch(() => { setCustomer(null); setLoading(false); });
   }, [id]);
 
   const handleDelete = async () => {
