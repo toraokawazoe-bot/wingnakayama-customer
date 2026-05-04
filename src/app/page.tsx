@@ -1,38 +1,44 @@
+import Link from "next/link";
 import { auth, signOut } from "@/auth";
+import { Button } from "@/components/ui/button";
+import { CustomerSearch } from "@/components/customer-search";
+import { getCustomersWithVehicles } from "@/lib/queries/dashboard";
 
 export default async function Home() {
-  const session = await auth();
+  const [session, initialData] = await Promise.all([
+    auth(),
+    getCustomersWithVehicles(),
+  ]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">バイク屋管理システム</h1>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold">バイク屋管理システム</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">
+              {session?.user?.name ?? "ユーザー"}
+            </span>
+            <Link href="/customers/new">
+              <Button size="sm">新規顧客登録</Button>
+            </Link>
             <form
               action={async () => {
                 "use server";
                 await signOut({ redirectTo: "/login" });
               }}
             >
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300 transition"
-              >
+              <Button type="submit" size="sm" variant="outline">
                 ログアウト
-              </button>
+              </Button>
             </form>
           </div>
-
-          <div className="text-gray-700 mb-4">
-            ようこそ、{session?.user?.name ?? "ユーザー"}さん
-          </div>
-
-          <div className="text-gray-500 text-sm">
-            機能は順次追加予定です。
-          </div>
         </div>
-      </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto p-6">
+        <CustomerSearch initialData={initialData} />
+      </main>
     </div>
   );
 }
