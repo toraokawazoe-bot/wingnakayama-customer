@@ -77,4 +77,18 @@ export const customerFormSchema = z.object({
 
 export type CustomerFormData = z.infer<typeof customerFormSchema>;
 
+export const customerLightFormSchema = z.object({
+  lastName: z.string().min(1, "姓を入力してください").max(50),
+  firstName: z.string().min(1, "名を入力してください").max(50),
+  phone: z
+    .string()
+    .regex(/^[\d-]*$/, "電話番号は数字とハイフンのみ")
+    .max(20)
+    .optional()
+    .or(z.literal("")),
+  memo: z.string().max(1000).optional().or(z.literal("")),
+});
+
+export type CustomerLightFormData = z.infer<typeof customerLightFormSchema>;
+
 export { PREFECTURES };

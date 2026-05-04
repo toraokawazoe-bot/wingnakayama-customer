@@ -10,6 +10,8 @@ export const shopSettings = sqliteTable("shop_settings", {
   phone: text("phone"),
   email: text("email"),
   registrationNumber: text("registration_number"),
+  taxMode: text("tax_mode", { enum: ["inclusive", "exclusive", "none"] }).default("inclusive").notNull(),
+  taxRate: integer("tax_rate").default(10).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .default(sql`(unixepoch() * 1000)`).notNull(),
 });

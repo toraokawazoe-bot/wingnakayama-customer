@@ -37,29 +37,24 @@ export async function updateShopSettingsAction(
   try {
     const existing = await db.select({ id: shopSettings.id }).from(shopSettings).limit(1);
 
+    const values = {
+      shopName: v.shopName,
+      ownerName: v.ownerName || null,
+      postalCode: v.postalCode || null,
+      address: v.address || null,
+      phone: v.phone || null,
+      email: v.email || null,
+      registrationNumber: v.registrationNumber || null,
+      taxMode: v.taxMode,
+      taxRate: v.taxRate,
+    };
+
     if (existing.length === 0) {
-      await db.insert(shopSettings).values({
-        shopName: v.shopName,
-        ownerName: v.ownerName || null,
-        postalCode: v.postalCode || null,
-        address: v.address || null,
-        phone: v.phone || null,
-        email: v.email || null,
-        registrationNumber: v.registrationNumber || null,
-      });
+      await db.insert(shopSettings).values(values);
     } else {
       await db
         .update(shopSettings)
-        .set({
-          shopName: v.shopName,
-          ownerName: v.ownerName || null,
-          postalCode: v.postalCode || null,
-          address: v.address || null,
-          phone: v.phone || null,
-          email: v.email || null,
-          registrationNumber: v.registrationNumber || null,
-          updatedAt: new Date(),
-        })
+        .set({ ...values, updatedAt: new Date() })
         .where(eq(shopSettings.id, existing[0].id));
     }
 

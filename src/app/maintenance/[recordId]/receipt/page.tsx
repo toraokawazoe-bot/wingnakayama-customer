@@ -41,6 +41,15 @@ export default async function ReceiptPage({ params }: PageProps) {
     .filter(Boolean)
     .join(" ");
 
+  const taxMode = shop?.taxMode ?? "inclusive";
+  const taxRate = shop?.taxRate ?? 10;
+  const price = record.price;
+
+  // 税抜の場合: 本体価格と消費税を計算
+  // price は税抜として扱う
+  const taxAmount = taxMode === "exclusive" ? Math.round(price * taxRate / 100) : 0;
+  const totalAmount = taxMode === "exclusive" ? price + taxAmount : price;
+
   return (
     <>
       <style>{`
@@ -70,13 +79,35 @@ export default async function ReceiptPage({ params }: PageProps) {
               </p>
             </div>
 
-            <div className="text-center py-4">
-              <p className="text-sm text-gray-500 mb-1">金額</p>
-              <p className="text-4xl font-bold tracking-tight">
-                ¥{record.price.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">（消費税込）</p>
-            </div>
+            {/* 金額ブロック */}
+            {taxMode === "exclusive" ? (
+              <div className="py-4 space-y-3">
+                <div className="flex justify-between text-sm text-gray-600 border-b pb-2">
+                  <span>金額（税抜）</span>
+                  <span>¥{price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600 border-b pb-2">
+                  <span>消費税（{taxRate}%）</span>
+                  <span>¥{taxAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg pt-1">
+                  <span>合計</span>
+                  <span>¥{totalAmount.toLocaleString()}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 mb-1">
+                  {taxMode === "inclusive" ? "金額（税込）" : "金額"}
+                </p>
+                <p className="text-4xl font-bold tracking-tight">
+                  ¥{price.toLocaleString()}
+                </p>
+                {taxMode === "inclusive" && (
+                  <p className="text-xs text-gray-400 mt-1">（消費税{taxRate}%込）</p>
+                )}
+              </div>
+            )}
 
             <table className="w-full text-sm border-t border-b">
               <thead>
@@ -90,7 +121,7 @@ export default async function ReceiptPage({ params }: PageProps) {
                 <tr>
                   <td className="py-2 pr-4 text-gray-600">{record.performedAt}</td>
                   <td className="py-2 pr-4">{record.workName}</td>
-                  <td className="py-2 text-right">¥{record.price.toLocaleString()}</td>
+                  <td className="py-2 text-right">¥{price.toLocaleString()}</td>
                 </tr>
               </tbody>
             </table>
@@ -101,7 +132,9 @@ export default async function ReceiptPage({ params }: PageProps) {
               {shop?.address && <p>{shop.address}</p>}
               {shop?.phone && <p>TEL: {shop.phone}</p>}
               {shop?.registrationNumber && (
-                <p className="text-xs text-gray-400">登録番号: {shop.registrationNumber}</p>
+                <p className="text-xs text-gray-500 pt-1">
+                  適格請求書発行事業者 登録番号: {shop.registrationNumber}
+                </p>
               )}
               <p className="text-xs text-gray-400 pt-2">発行日: {issuedDate}</p>
             </div>

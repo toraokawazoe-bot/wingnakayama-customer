@@ -22,6 +22,8 @@ export const shopSettingsSchema = z.object({
     .optional()
     .or(z.literal("")),
   registrationNumber: z.string().max(20).optional().or(z.literal("")),
+  taxMode: z.enum(["inclusive", "exclusive", "none"]).default("inclusive"),
+  taxRate: z.number().int().min(0, "0以上").max(99, "99以下").default(10),
 });
 
 export type ShopSettingsFormData = z.infer<typeof shopSettingsSchema>;

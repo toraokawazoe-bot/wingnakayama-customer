@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { visitorSearchAction } from "@/app/actions/visitor-search";
 import type { CustomerSearchResult } from "@/lib/queries/customer-search";
+import { CustomerLightForm } from "@/components/customer-light-form";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 
 export function VisitorBar() {
   const router = useRouter();
@@ -15,8 +16,14 @@ export function VisitorBar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [noResults, setNoResults] = useState(false);
+  const [showLightForm, setShowLightForm] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derive initial name from search query (姓 名 split)
+  const queryParts = query.trim().split(/\s+/);
+  const initialLastName = queryParts[0] ?? "";
+  const initialFirstName = queryParts[1] ?? "";
 
   // Click outside to close
   useEffect(() => {
@@ -87,13 +94,33 @@ export function VisitorBar() {
         )}
       </div>
 
-      {isOpen && (
+      {showLightForm && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1">
+          <CustomerLightForm
+            initialLastName={initialLastName}
+            initialFirstName={initialFirstName}
+            onClose={() => { setShowLightForm(false); setIsOpen(false); }}
+          />
+        </div>
+      )}
+
+      {isOpen && !showLightForm && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
           {noResults ? (
-            <div className="p-4 text-sm text-gray-500">
-              該当なし。
-              <Link href="/customers/new" className="ml-2 text-blue-600 hover:underline">
-                新規登録しますか？
+            <div className="p-3 space-y-2">
+              <p className="text-sm text-gray-500">該当なし</p>
+              <button
+                onClick={() => { setIsOpen(false); setShowLightForm(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-sm text-blue-700 font-medium transition-colors"
+              >
+                <UserPlus className="w-4 h-4 shrink-0" />
+                <span>「{query.trim()}」さんを今すぐ登録（最低限のみ）</span>
+              </button>
+              <Link
+                href="/customers/new"
+                className="block text-xs text-gray-400 hover:underline text-center py-1"
+              >
+                詳細な情報も入力して登録する →
               </Link>
             </div>
           ) : (

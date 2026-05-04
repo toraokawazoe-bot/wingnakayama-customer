@@ -87,6 +87,12 @@ export default async function Home() {
                 <DropdownMenuItem asChild>
                   <Link href="/settings/parts">部品マスタ</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/import">データ取り込み</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/backup">バックアップ</Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

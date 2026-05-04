@@ -1,7 +1,12 @@
 "use server";
 
 import { db, customers } from "@/db";
-import { customerFormSchema, type CustomerFormData } from "@/lib/schemas/customer";
+import {
+  customerFormSchema,
+  customerLightFormSchema,
+  type CustomerFormData,
+  type CustomerLightFormData,
+} from "@/lib/schemas/customer";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 
@@ -57,6 +62,43 @@ export async function createCustomerAction(
     return { ok: true, customerId: inserted.id };
   } catch (error) {
     console.error("[createCustomerAction] DB insert failed:", error);
+    return { ok: false, error: "登録に失敗しました。もう一度お試しください。" };
+  }
+}
+
+export async function createCustomerLightAction(
+  data: CustomerLightFormData
+): Promise<CreateCustomerResult> {
+  const session = await auth();
+  if (!session?.user) {
+    return { ok: false, error: "ログインが必要です" };
+  }
+
+  const parsed = customerLightFormSchema.safeParse(data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "入力内容に誤りがあります",
+      fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+    };
+  }
+
+  const v = parsed.data;
+
+  try {
+    const [inserted] = await db
+      .insert(customers)
+      .values({
+        lastName: v.lastName,
+        firstName: v.firstName,
+        phone: v.phone || null,
+        memo: v.memo || null,
+      })
+      .returning({ id: customers.id });
+
+    return { ok: true, customerId: inserted.id };
+  } catch (error) {
+    console.error("[createCustomerLightAction] DB insert failed:", error);
     return { ok: false, error: "登録に失敗しました。もう一度お試しください。" };
   }
 }

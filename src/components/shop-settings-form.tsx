@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shopSettingsSchema, type ShopSettingsFormData } from "@/lib/schemas/shop";
 import { updateShopSettingsAction } from "@/app/settings/shop/actions";
@@ -20,9 +20,10 @@ export function ShopSettingsForm({ initialData }: Props) {
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ShopSettingsFormData>({
+  } = useForm({
     resolver: zodResolver(shopSettingsSchema),
     defaultValues: {
       shopName: initialData?.shopName ?? "",
@@ -32,8 +33,12 @@ export function ShopSettingsForm({ initialData }: Props) {
       phone: initialData?.phone ?? "",
       email: initialData?.email ?? "",
       registrationNumber: initialData?.registrationNumber ?? "",
+      taxMode: (initialData?.taxMode as "inclusive" | "exclusive" | "none") ?? "inclusive",
+      taxRate: initialData?.taxRate ?? 10,
     },
   });
+
+  const taxMode = useWatch({ control, name: "taxMode" });
 
   const onSubmit = async (data: ShopSettingsFormData) => {
     setSubmitError(null);
@@ -124,6 +129,48 @@ export function ShopSettingsForm({ initialData }: Props) {
         <p className="text-xs text-gray-400">T + 13桁の数字</p>
         {errors.registrationNumber && (
           <p className="text-sm text-red-600">{errors.registrationNumber.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-3 pt-2 border-t">
+        <Label className="text-sm font-semibold">消費税の表示方法</Label>
+        <div className="space-y-2">
+          {(["inclusive", "exclusive", "none"] as const).map((mode) => (
+            <label key={mode} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                value={mode}
+                {...register("taxMode")}
+                className="accent-blue-600"
+              />
+              <span className="text-sm">
+                {mode === "inclusive" && "税込表示（例: ¥1,100 税込）"}
+                {mode === "exclusive" && "税抜表示（例: ¥1,000 + 消費税¥100 = ¥1,100）"}
+                {mode === "none" && "非課税事業者（税表示なし）"}
+              </span>
+            </label>
+          ))}
+        </div>
+        {errors.taxMode && (
+          <p className="text-sm text-red-600">{errors.taxMode.message}</p>
+        )}
+
+        {taxMode !== "none" && (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="taxRate" className="text-sm shrink-0">税率</Label>
+            <Input
+              id="taxRate"
+              type="number"
+              min="0"
+              max="99"
+              className="w-20 h-8 text-sm"
+              {...register("taxRate", { valueAsNumber: true })}
+            />
+            <span className="text-sm text-gray-500">%</span>
+            {errors.taxRate && (
+              <p className="text-sm text-red-600">{errors.taxRate.message}</p>
+            )}
+          </div>
         )}
       </div>
 

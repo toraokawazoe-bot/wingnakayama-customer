@@ -34,3 +34,36 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+---
+
+## 運用手順
+
+### バックアップ
+
+全データ（顧客・車両・整備記録・在庫）を `backups/` ディレクトリにJSONとして保存します。
+
+```bash
+npx tsx scripts/backup.ts
+```
+
+**推奨**: 毎日深夜にcronで自動実行
+
+```cron
+0 2 * * * cd /path/to/bike-shop-system && npx tsx scripts/backup.ts >> /var/log/bike-backup.log 2>&1
+```
+
+### リストア（緊急時）
+
+```bash
+npx tsx scripts/restore.ts backups/2026-05-04-020000.json
+```
+
+実行前に確認プロンプトが表示されます。`yes` と入力すると全テーブルをDELETE → 挿入します。
+
+> ⚠️ リストアは全データを上書きします。必ず事前にバックアップを確認してください。
+
+### データ取り込み（CSV）
+
+`/settings/import` ページから顧客データをCSV一括取り込みできます。  
+サンプルCSVは `/public/sample-customers.csv` を参照してください。
