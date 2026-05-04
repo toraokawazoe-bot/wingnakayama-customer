@@ -10,6 +10,7 @@ import {
   type CustomerFormData,
 } from "@/lib/schemas/customer";
 import { createCustomerAction } from "@/app/customers/new/actions";
+import { updateCustomerAction } from "@/app/customers/[id]/edit/actions";
 import { lookupAddressByPostalCode } from "@/lib/postal-code";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,11 +24,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function CustomerForm() {
+type Props =
+  | { mode: "create" }
+  | { mode: "edit"; customerId: number; initialData: CustomerFormData };
+
+export function CustomerForm(props: Props) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
+
+  const initialData = props.mode === "edit" ? props.initialData : undefined;
 
   const {
     register,
@@ -38,18 +45,18 @@ export function CustomerForm() {
   } = useForm<CustomerFormData>({
     resolver: zodResolver(customerFormSchema),
     defaultValues: {
-      lastName: "",
-      firstName: "",
-      lastNameKana: "",
-      firstNameKana: "",
-      postalCode: "",
-      prefecture: "",
-      city: "",
-      addressLine: "",
-      phone: "",
-      email: "",
-      birthday: "",
-      memo: "",
+      lastName: initialData?.lastName ?? "",
+      firstName: initialData?.firstName ?? "",
+      lastNameKana: initialData?.lastNameKana ?? "",
+      firstNameKana: initialData?.firstNameKana ?? "",
+      postalCode: initialData?.postalCode ?? "",
+      prefecture: initialData?.prefecture ?? "",
+      city: initialData?.city ?? "",
+      addressLine: initialData?.addressLine ?? "",
+      phone: initialData?.phone ?? "",
+      email: initialData?.email ?? "",
+      birthday: initialData?.birthday ?? "",
+      memo: initialData?.memo ?? "",
     },
   });
 
@@ -78,13 +85,23 @@ export function CustomerForm() {
 
   const onSubmit = async (data: CustomerFormData) => {
     setSubmitError(null);
-    const result = await createCustomerAction(data);
 
+    if (props.mode === "edit") {
+      const result = await updateCustomerAction(props.customerId, data);
+      if (!result.ok) {
+        setSubmitError(result.error);
+        return;
+      }
+      router.push(`/customers/${props.customerId}`);
+      router.refresh();
+      return;
+    }
+
+    const result = await createCustomerAction(data);
     if (!result.ok) {
       setSubmitError(result.error);
       return;
     }
-
     router.push(`/customers/${result.customerId}`);
   };
 
@@ -133,11 +150,7 @@ export function CustomerForm() {
       {/* 電話番号 */}
       <div className="space-y-2">
         <Label htmlFor="phone">電話番号</Label>
-        <Input
-          id="phone"
-          placeholder="090-1234-5678"
-          {...register("phone")}
-        />
+        <Input id="phone" placeholder="090-1234-5678" {...register("phone")} />
         {errors.phone && (
           <p className="text-sm text-red-600">{errors.phone.message}</p>
         )}
@@ -177,7 +190,7 @@ export function CustomerForm() {
           <Select
             value={prefecture || ""}
             onValueChange={(value) =>
-              setValue("prefecture", value as typeof PREFECTURES[number], {
+              setValue("prefecture", value as (typeof PREFECTURES)[number], {
                 shouldValidate: true,
               })
             }
@@ -246,20 +259,20 @@ export function CustomerForm() {
         )}
       </div>
 
-      {/* 送信エラー */}
       {submitError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {submitError}
         </div>
       )}
 
-      {/* ボタン */}
       <div className="flex gap-3 justify-end">
         <Button type="button" variant="outline" onClick={() => router.back()}>
           キャンセル
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "登録中..." : "登録"}
+          {isSubmitting
+            ? props.mode === "edit" ? "更新中..." : "登録中..."
+            : props.mode === "edit" ? "更新" : "登録"}
         </Button>
       </div>
     </form>

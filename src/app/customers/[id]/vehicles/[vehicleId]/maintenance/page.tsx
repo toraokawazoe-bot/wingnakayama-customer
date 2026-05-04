@@ -94,7 +94,7 @@ export default async function MaintenancePage({ params }: PageProps) {
 
         <section className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-base font-semibold mb-4">整備履歴</h2>
-          <MaintenanceHistory records={records} />
+          <MaintenanceHistory records={records} customerId={customerId} vehicleId={vehicleIdNum} />
         </section>
       </main>
     </div>

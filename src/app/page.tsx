@@ -19,6 +19,9 @@ export default async function Home() {
             <span className="text-sm text-gray-500">
               {session?.user?.name ?? "ユーザー"}
             </span>
+            <Link href="/settings/shop">
+              <Button size="sm" variant="ghost">設定</Button>
+            </Link>
             <Link href="/customers/new">
               <Button size="sm">新規顧客登録</Button>
             </Link>

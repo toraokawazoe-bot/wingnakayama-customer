@@ -24,7 +24,7 @@ export default function NewCustomerPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <CustomerForm />
+          <CustomerForm mode="create" />
         </div>
       </main>
     </div>

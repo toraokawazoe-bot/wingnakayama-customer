@@ -22,6 +22,13 @@
       "when": 1777863634605,
       "tag": "0002_faulty_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1777870829534,
+      "tag": "0003_fancy_spot",
+      "breakpoints": true
     }
   ]
 }

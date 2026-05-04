@@ -1,8 +1,7 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { migrate } from "drizzle-orm/libsql/migrator";
+import { shopSettings } from "../src/db/schema/shop";
 import * as dotenv from "dotenv";
-import path from "path";
 
 dotenv.config({ path: ".env.local" });
 
@@ -10,13 +9,18 @@ const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
   authToken: process.env.TURSO_AUTH_TOKEN!,
 });
-
 const db = drizzle(client);
 
 async function main() {
-  console.log("Running migrations...");
-  await migrate(db, { migrationsFolder: path.join(process.cwd(), "src/db/migrations") });
-  console.log("Migrations complete.");
+  const existing = await db.select().from(shopSettings);
+  if (existing.length > 0) {
+    console.log("既存の店舗設定があります。スキップします。");
+    client.close();
+    return;
+  }
+
+  await db.insert(shopSettings).values({ shopName: "ウイング中山" });
+  console.log("店舗設定の初期データを投入しました。");
   client.close();
 }
 

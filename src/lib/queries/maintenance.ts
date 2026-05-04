@@ -60,6 +60,16 @@ export async function getMaintenanceRecordById(id: number) {
   return result[0] ?? null;
 }
 
+export async function getMaintenanceRecordRaw(id: number) {
+  const result = await db
+    .select()
+    .from(maintenanceRecords)
+    .where(eq(maintenanceRecords.id, id))
+    .limit(1);
+  return result[0] ?? null;
+}
+
 export type WorkItem = Awaited<ReturnType<typeof getActiveWorkItems>>[number];
 export type MaintenanceRecord = Awaited<ReturnType<typeof getMaintenanceRecordsByVehicleId>>[number];
 export type MaintenanceRecordDetail = NonNullable<Awaited<ReturnType<typeof getMaintenanceRecordById>>>;
+export type MaintenanceRecordRaw = NonNullable<Awaited<ReturnType<typeof getMaintenanceRecordRaw>>>;

@@ -12,15 +12,15 @@ import {
   type VehicleFormInput,
 } from "@/lib/schemas/vehicle";
 import { createVehicleAction } from "@/app/customers/[id]/vehicles/new/actions";
+import { updateVehicleAction } from "@/app/customers/[id]/vehicles/[vehicleId]/edit/actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
-type Props = {
-  customerId: number;
-  modelNameSuggestions: string[];
-};
+type Props =
+  | { mode: "create"; customerId: number; modelNameSuggestions: string[] }
+  | { mode: "edit"; customerId: number; vehicleId: number; modelNameSuggestions: string[]; initialData: VehicleFormData };
 
 const PURCHASE_SOURCE_LABELS = {
   own_sale: "自社販売",
@@ -29,14 +29,36 @@ const PURCHASE_SOURCE_LABELS = {
   unknown: "不明",
 } as const;
 
-export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
+export function VehicleForm(props: Props) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [makerMode, setMakerMode] = useState<"preset" | "custom">("preset");
-  const [selectedMaker, setSelectedMaker] = useState<string>("");
-  const [displacementMode, setDisplacementMode] = useState<"preset" | "custom">("preset");
-  const [selectedDisplacement, setSelectedDisplacement] = useState<number | null>(null);
-  const [selectedPurchaseSource, setSelectedPurchaseSource] = useState<string>("");
+
+  const initialData = props.mode === "edit" ? props.initialData : undefined;
+
+  const initialMaker = initialData?.maker ?? "";
+  const isPresetMaker = MAKERS.includes(initialMaker as (typeof MAKERS)[number]) && initialMaker !== "その他";
+
+  const [makerMode, setMakerMode] = useState<"preset" | "custom">(
+    initialData ? (isPresetMaker ? "preset" : "custom") : "preset"
+  );
+  const [selectedMaker, setSelectedMaker] = useState<string>(initialMaker);
+
+  const initialDisplacement = initialData?.displacement as number | undefined;
+  const isPresetDisplacement = initialDisplacement
+    ? QUICK_DISPLACEMENTS.includes(initialDisplacement as (typeof QUICK_DISPLACEMENTS)[number])
+    : false;
+
+  const [displacementMode, setDisplacementMode] = useState<"preset" | "custom">(
+    initialData ? (isPresetDisplacement ? "preset" : "custom") : "preset"
+  );
+  const [selectedDisplacement, setSelectedDisplacement] = useState<number | null>(
+    isPresetDisplacement ? (initialDisplacement ?? null) : null
+  );
+
+  const initialPurchaseSource = initialData?.purchaseSource ?? "";
+  const [selectedPurchaseSource, setSelectedPurchaseSource] = useState<string>(
+    typeof initialPurchaseSource === "string" ? initialPurchaseSource : ""
+  );
 
   const {
     register,
@@ -46,18 +68,18 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
   } = useForm<VehicleFormInput, unknown, VehicleFormData>({
     resolver: zodResolver(vehicleFormSchema),
     defaultValues: {
-      maker: "",
-      modelName: "",
-      displacement: undefined,
-      plateNumber: "",
-      frameNumber: "",
-      modelCode: "",
-      firstRegistrationDate: "",
-      engineModel: "",
-      color: "",
-      purchaseMileage: "",
-      purchaseSource: "",
-      memo: "",
+      maker: initialData?.maker ?? "",
+      modelName: initialData?.modelName ?? "",
+      displacement: initialData?.displacement ?? undefined,
+      plateNumber: initialData?.plateNumber ?? "",
+      frameNumber: initialData?.frameNumber ?? "",
+      modelCode: initialData?.modelCode ?? "",
+      firstRegistrationDate: initialData?.firstRegistrationDate ?? "",
+      engineModel: initialData?.engineModel ?? "",
+      color: initialData?.color ?? "",
+      purchaseMileage: initialData?.purchaseMileage ?? "",
+      purchaseSource: (initialData?.purchaseSource as VehicleFormInput["purchaseSource"]) ?? "",
+      memo: initialData?.memo ?? "",
     },
   });
 
@@ -81,14 +103,24 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
 
   const onSubmit = async (data: VehicleFormData) => {
     setSubmitError(null);
-    const result = await createVehicleAction(customerId, data);
 
+    if (props.mode === "edit") {
+      const result = await updateVehicleAction(props.customerId, props.vehicleId, data);
+      if (!result.ok) {
+        setSubmitError(result.error);
+        return;
+      }
+      router.push(`/customers/${props.customerId}`);
+      router.refresh();
+      return;
+    }
+
+    const result = await createVehicleAction(props.customerId, data);
     if (!result.ok) {
       setSubmitError(result.error);
       return;
     }
-
-    router.push(`/customers/${customerId}`);
+    router.push(`/customers/${props.customerId}`);
   };
 
   return (
@@ -134,7 +166,7 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
           {...register("modelName")}
         />
         <datalist id="model-name-suggestions">
-          {modelNameSuggestions.map((name) => (
+          {props.modelNameSuggestions.map((name) => (
             <option key={name} value={name} />
           ))}
         </datalist>
@@ -217,11 +249,7 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
       {/* 車台番号 */}
       <div className="space-y-2">
         <Label htmlFor="frameNumber">車台番号</Label>
-        <Input
-          id="frameNumber"
-          placeholder="例: JA44-1000001"
-          {...register("frameNumber")}
-        />
+        <Input id="frameNumber" placeholder="例: JA44-1000001" {...register("frameNumber")} />
         {errors.frameNumber && (
           <p className="text-sm text-red-600">{errors.frameNumber.message}</p>
         )}
@@ -230,11 +258,7 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
       {/* 型式 */}
       <div className="space-y-2">
         <Label htmlFor="modelCode">型式</Label>
-        <Input
-          id="modelCode"
-          placeholder="例: JA44"
-          {...register("modelCode")}
-        />
+        <Input id="modelCode" placeholder="例: JA44" {...register("modelCode")} />
         {errors.modelCode && (
           <p className="text-sm text-red-600">{errors.modelCode.message}</p>
         )}
@@ -301,31 +325,26 @@ export function VehicleForm({ customerId, modelNameSuggestions }: Props) {
       {/* メモ */}
       <div className="space-y-2">
         <Label htmlFor="memo">メモ</Label>
-        <Textarea
-          id="memo"
-          placeholder="自由メモ欄"
-          rows={3}
-          {...register("memo")}
-        />
+        <Textarea id="memo" placeholder="自由メモ欄" rows={3} {...register("memo")} />
         {errors.memo && (
           <p className="text-sm text-red-600">{errors.memo.message}</p>
         )}
       </div>
 
-      {/* 送信エラー */}
       {submitError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {submitError}
         </div>
       )}
 
-      {/* ボタン */}
       <div className="flex gap-3 justify-end">
         <Button type="button" variant="outline" onClick={() => router.back()}>
           キャンセル
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "登録中..." : "登録"}
+          {isSubmitting
+            ? props.mode === "edit" ? "更新中..." : "登録中..."
+            : props.mode === "edit" ? "更新" : "登録"}
         </Button>
       </div>
     </form>

@@ -1,11 +1,59 @@
+"use client";
+
 import Link from "next/link";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { deleteMaintenanceRecordAction } from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
 import type { MaintenanceRecord } from "@/lib/queries/maintenance";
+import { Button } from "@/components/ui/button";
+import { Pencil, Trash2 } from "lucide-react";
 
 type Props = {
   records: MaintenanceRecord[];
+  customerId: number;
+  vehicleId: number;
 };
 
-export function MaintenanceHistory({ records }: Props) {
+function DeleteButton({
+  recordId,
+  workName,
+  customerId,
+  vehicleId,
+}: {
+  recordId: number;
+  workName: string;
+  customerId: number;
+  vehicleId: number;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const handleDelete = () => {
+    if (!window.confirm(`「${workName}」の記録を削除しますか？`)) return;
+
+    startTransition(async () => {
+      const result = await deleteMaintenanceRecordAction(recordId, customerId, vehicleId);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
+  return (
+    <button
+      onClick={handleDelete}
+      disabled={isPending}
+      className="text-red-500 hover:text-red-700 disabled:opacity-40 p-1"
+      title="削除"
+    >
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
+  );
+}
+
+export function MaintenanceHistory({ records, customerId, vehicleId }: Props) {
   if (records.length === 0) {
     return (
       <div className="text-sm text-gray-500 text-center py-8">
@@ -41,12 +89,25 @@ export function MaintenanceHistory({ records }: Props) {
               </td>
               <td className="py-3 pr-4 text-gray-600">{r.staffName ?? "—"}</td>
               <td className="py-3">
-                <Link
-                  href={`/maintenance/${r.id}/receipt`}
-                  className="text-blue-600 hover:underline text-xs"
-                >
-                  領収書
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/maintenance/${r.id}/receipt`}
+                    className="text-blue-600 hover:underline text-xs mr-1"
+                  >
+                    領収書
+                  </Link>
+                  <Link href={`/maintenance/${r.id}/edit`}>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </Link>
+                  <DeleteButton
+                    recordId={r.id}
+                    workName={r.workName}
+                    customerId={customerId}
+                    vehicleId={vehicleId}
+                  />
+                </div>
               </td>
             </tr>
           ))}

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getMaintenanceRecordById } from "@/lib/queries/maintenance";
-import { SHOP_NAME, SHOP_OWNER, SHOP_ADDRESS, SHOP_PHONE, SHOP_REGISTRATION_NUMBER } from "@/lib/constants/shop";
+import { getShopSettings } from "@/lib/queries/shop";
 import { PrintButton } from "./print-button";
 
 type PageProps = {
@@ -21,7 +21,10 @@ export default async function ReceiptPage({ params }: PageProps) {
     notFound();
   }
 
-  const record = await getMaintenanceRecordById(id);
+  const [record, shop] = await Promise.all([
+    getMaintenanceRecordById(id),
+    getShopSettings(),
+  ]);
 
   if (!record) {
     notFound();
@@ -93,12 +96,12 @@ export default async function ReceiptPage({ params }: PageProps) {
             </table>
 
             <div className="pt-4 border-t space-y-1 text-sm text-gray-700">
-              <p className="font-semibold text-base">{SHOP_NAME}</p>
-              {SHOP_OWNER && <p>店主: {SHOP_OWNER}</p>}
-              {SHOP_ADDRESS && <p>{SHOP_ADDRESS}</p>}
-              {SHOP_PHONE && <p>TEL: {SHOP_PHONE}</p>}
-              {SHOP_REGISTRATION_NUMBER && (
-                <p className="text-xs text-gray-400">登録番号: {SHOP_REGISTRATION_NUMBER}</p>
+              <p className="font-semibold text-base">{shop?.shopName ?? ""}</p>
+              {shop?.ownerName && <p>店主: {shop.ownerName}</p>}
+              {shop?.address && <p>{shop.address}</p>}
+              {shop?.phone && <p>TEL: {shop.phone}</p>}
+              {shop?.registrationNumber && (
+                <p className="text-xs text-gray-400">登録番号: {shop.registrationNumber}</p>
               )}
               <p className="text-xs text-gray-400 pt-2">発行日: {issuedDate}</p>
             </div>

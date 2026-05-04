@@ -1,15 +1,23 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { getCustomerById } from "@/lib/queries/customers";
 import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Pencil, Trash2, Plus, Wrench } from "lucide-react";
+import { ChevronLeft, Pencil, Plus, Wrench } from "lucide-react";
+import { CustomerDeleteButton } from "@/components/customer-delete-button";
+import { VehicleDeleteButton } from "@/components/vehicle-delete-button";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
 export default async function CustomerDetailPage({ params }: PageProps) {
+  const session = await auth();
+  if (!session?.user) {
+    redirect("/login");
+  }
+
   const { id } = await params;
   const customerId = parseInt(id, 10);
 
@@ -24,6 +32,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   }
 
   const vehicleList = await getVehiclesByCustomerId(customerId);
+  const isOwner = (session.user as { role?: string }).role === "owner";
 
   const fullName = `${customer.lastName} ${customer.firstName}`;
   const fullKana =
@@ -54,14 +63,15 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold">基本情報</h2>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>
-                <Pencil className="w-4 h-4 mr-1" />
-                編集
-              </Button>
-              <Button variant="outline" size="sm" disabled className="text-red-600">
-                <Trash2 className="w-4 h-4 mr-1" />
-                削除
-              </Button>
+              <Link href={`/customers/${customerId}/edit`}>
+                <Button variant="outline" size="sm">
+                  <Pencil className="w-4 h-4 mr-1" />
+                  編集
+                </Button>
+              </Link>
+              {isOwner && (
+                <CustomerDeleteButton customerId={customerId} customerName={fullName} />
+              )}
             </div>
           </div>
 
@@ -163,12 +173,27 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                         <span>登録: {v.createdAt.toLocaleDateString("ja-JP")}</span>
                       )}
                     </div>
-                    <Link href={`/customers/${customerId}/vehicles/${v.id}/maintenance`}>
-                      <Button variant="outline" size="sm" className="text-xs h-7">
-                        <Wrench className="w-3 h-3 mr-1" />
-                        整備記録
-                      </Button>
-                    </Link>
+                    <div className="flex gap-1">
+                      <Link href={`/customers/${customerId}/vehicles/${v.id}/maintenance`}>
+                        <Button variant="outline" size="sm" className="text-xs h-7">
+                          <Wrench className="w-3 h-3 mr-1" />
+                          整備記録
+                        </Button>
+                      </Link>
+                      <Link href={`/customers/${customerId}/vehicles/${v.id}/edit`}>
+                        <Button variant="outline" size="sm" className="text-xs h-7">
+                          <Pencil className="w-3 h-3 mr-1" />
+                          編集
+                        </Button>
+                      </Link>
+                      {isOwner && (
+                        <VehicleDeleteButton
+                          vehicleId={v.id}
+                          customerId={customerId}
+                          vehicleName={`${v.maker} ${v.modelName}`}
+                        />
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}
