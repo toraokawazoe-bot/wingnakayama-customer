@@ -29,6 +29,13 @@
       "when": 1777870829534,
       "tag": "0003_fancy_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777874019038,
+      "tag": "0004_broken_black_tom",
+      "breakpoints": true
     }
   ]
 }

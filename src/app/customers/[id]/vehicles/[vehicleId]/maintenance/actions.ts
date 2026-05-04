@@ -1,7 +1,7 @@
 "use server";
 
-import { db, maintenanceRecords, workItems } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, maintenanceRecords, workItems, workItemParts, parts, stockMovements } from "@/db";
+import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 
@@ -45,7 +45,29 @@ export async function quickAddMaintenanceAction(
       })
       .returning({ id: maintenanceRecords.id });
 
+    // 使用部品の在庫を自動消費（在庫不足でも続行、警告のみ）
+    const linkedParts = await db
+      .select({ partId: workItemParts.partId, quantity: workItemParts.quantity })
+      .from(workItemParts)
+      .where(eq(workItemParts.workItemId, item[0].id));
+
+    for (const lp of linkedParts) {
+      await db
+        .update(parts)
+        .set({ currentStock: sql`${parts.currentStock} - ${lp.quantity}` })
+        .where(eq(parts.id, lp.partId));
+      await db.insert(stockMovements).values({
+        partId: lp.partId,
+        movementType: "out",
+        quantity: -lp.quantity,
+        maintenanceRecordId: inserted.id,
+        memo: `自動消費: ${item[0].name}`,
+      });
+    }
+
     revalidatePath(`/customers`);
+    revalidatePath(`/settings/parts`);
+    revalidatePath(`/`);
 
     return { ok: true, recordId: inserted.id };
   } catch (error) {

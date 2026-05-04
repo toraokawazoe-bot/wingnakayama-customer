@@ -47,6 +47,9 @@ export default async function CustomersPage() {
                 <DropdownMenuItem asChild>
                   <Link href="/settings/work-items">作業マスタ</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/parts">部品マスタ</Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Link href="/customers/new">

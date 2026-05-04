@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { VisitorBar } from "@/components/visitor-bar";
+import { SidebarStats } from "@/components/sidebar-stats";
 import {
   getOilChangeAlerts,
   getInspectionAlerts,
@@ -98,6 +99,9 @@ export default async function Home() {
                 <DropdownMenuItem asChild>
                   <Link href="/settings/work-items">作業マスタ</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/parts">部品マスタ</Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Link href="/customers/new">
@@ -115,15 +119,17 @@ export default async function Home() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-6 space-y-8">
-        {/* 来店受付 */}
+      <main className="max-w-7xl mx-auto p-6 space-y-8">
+        {/* 来店受付（全幅） */}
         <section>
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">来店受付</h2>
           <VisitorBar />
         </section>
 
-        {/* アラートセクション */}
-        <section>
+        {/* 2カラムレイアウト */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 左: アラートセクション（8カラム） */}
+          <section className="lg:col-span-8">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">アクションが必要なお客さん</h2>
           <div className="grid grid-cols-1 gap-4">
 
@@ -302,7 +308,14 @@ export default async function Home() {
             </AlertSection>
 
           </div>
-        </section>
+          </section>
+
+          {/* 右: サイドバー（4カラム） */}
+          <section className="lg:col-span-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">在庫・今月</h2>
+            <SidebarStats />
+          </section>
+        </div>
       </main>
     </div>
   );

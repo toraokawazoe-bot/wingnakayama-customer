@@ -1,6 +1,6 @@
 "use server";
 
-import { db, workItems } from "@/db";
+import { db, workItems, workItemParts } from "@/db";
 import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
@@ -78,6 +78,60 @@ export async function toggleWorkItemActiveAction(id: number, isActive: boolean):
     return { ok: true };
   } catch (error) {
     console.error("[toggleWorkItemActiveAction]", error);
+    return { ok: false, error: "更新に失敗しました" };
+  }
+}
+
+export async function attachPartToWorkItemAction(
+  workItemId: number,
+  partId: number,
+  quantity: number
+): Promise<Result> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, error: "ログインが必要です" };
+  if ((session.user as { role?: string }).role !== "owner") return { ok: false, error: "オーナーのみ操作できます" };
+  if (!Number.isInteger(quantity) || quantity < 1) return { ok: false, error: "数量は1以上の整数で入力してください" };
+
+  try {
+    await db.insert(workItemParts).values({ workItemId, partId, quantity });
+    revalidatePath("/settings/work-items");
+    return { ok: true };
+  } catch (error) {
+    console.error("[attachPartToWorkItemAction]", error);
+    return { ok: false, error: "登録に失敗しました" };
+  }
+}
+
+export async function detachPartFromWorkItemAction(workItemPartId: number): Promise<Result> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, error: "ログインが必要です" };
+  if ((session.user as { role?: string }).role !== "owner") return { ok: false, error: "オーナーのみ操作できます" };
+
+  try {
+    await db.delete(workItemParts).where(eq(workItemParts.id, workItemPartId));
+    revalidatePath("/settings/work-items");
+    return { ok: true };
+  } catch (error) {
+    console.error("[detachPartFromWorkItemAction]", error);
+    return { ok: false, error: "削除に失敗しました" };
+  }
+}
+
+export async function updateWorkItemPartQuantityAction(
+  workItemPartId: number,
+  quantity: number
+): Promise<Result> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, error: "ログインが必要です" };
+  if ((session.user as { role?: string }).role !== "owner") return { ok: false, error: "オーナーのみ操作できます" };
+  if (!Number.isInteger(quantity) || quantity < 1) return { ok: false, error: "数量は1以上の整数で入力してください" };
+
+  try {
+    await db.update(workItemParts).set({ quantity }).where(eq(workItemParts.id, workItemPartId));
+    revalidatePath("/settings/work-items");
+    return { ok: true };
+  } catch (error) {
+    console.error("[updateWorkItemPartQuantityAction]", error);
     return { ok: false, error: "更新に失敗しました" };
   }
 }
