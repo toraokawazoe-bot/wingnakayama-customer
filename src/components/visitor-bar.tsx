@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { visitorSearchAction } from "@/app/actions/visitor-search";
+import { quickAddMaintenanceAction } from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
 import type { CustomerSearchResult } from "@/lib/queries/customer-search";
+import type { WorkItem } from "@/lib/queries/maintenance";
 import { CustomerLightForm } from "@/components/customer-light-form";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, UserPlus, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
-export function VisitorBar() {
+type Props = {
+  workItems: WorkItem[];
+};
+
+export function VisitorBar({ workItems }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CustomerSearchResult[]>([]);
@@ -17,15 +25,15 @@ export function VisitorBar() {
   const [isSearching, setIsSearching] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [showLightForm, setShowLightForm] = useState(false);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Derive initial name from search query (姓 名 split)
   const queryParts = query.trim().split(/\s+/);
   const initialLastName = queryParts[0] ?? "";
   const initialFirstName = queryParts[1] ?? "";
 
-  // Click outside to close
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -36,7 +44,6 @@ export function VisitorBar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ESC to close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsOpen(false);
@@ -69,10 +76,35 @@ export function VisitorBar() {
     timerRef.current = setTimeout(() => doSearch(val), 200);
   };
 
-  const handleSelect = (customerId: number) => {
+  const closeAndClear = () => {
     setIsOpen(false);
     setQuery("");
+    setResults([]);
+  };
+
+  const handleNavigate = (customerId: number) => {
+    closeAndClear();
     router.push(`/customers/${customerId}`);
+  };
+
+  const handleQuickAdd = (
+    vehicleId: number,
+    customerId: number,
+    item: WorkItem
+  ) => {
+    const key = `${vehicleId}-${item.id}`;
+    if (pendingKey) return;
+    setPendingKey(key);
+    startTransition(async () => {
+      const result = await quickAddMaintenanceAction(vehicleId, customerId, item.id);
+      setPendingKey(null);
+      if (result.ok) {
+        toast.success(`「${item.name}」を記録しました`);
+        closeAndClear();
+      } else {
+        toast.error(result.error);
+      }
+    });
   };
 
   return (
@@ -105,7 +137,7 @@ export function VisitorBar() {
       )}
 
       {isOpen && !showLightForm && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[32rem] overflow-y-auto">
           {noResults ? (
             <div className="p-3 space-y-2">
               <p className="text-sm text-gray-500">該当なし</p>
@@ -124,7 +156,7 @@ export function VisitorBar() {
               </Link>
             </div>
           ) : (
-            <ul>
+            <ul className="divide-y divide-gray-100">
               {results.map((c) => {
                 const lastVisitDaysAgo = c.stats.lastVisitAt
                   ? Math.round((Date.now() - new Date(c.stats.lastVisitAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -136,28 +168,27 @@ export function VisitorBar() {
                   : `${Math.round(lastVisitDaysAgo / 365)}年前`;
 
                 return (
-                  <li key={c.id}>
+                  <li key={c.id} className="p-3">
+                    {/* 顧客名行 → カルテへ */}
                     <button
-                      onClick={() => handleSelect(c.id)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                      onClick={() => handleNavigate(c.id)}
+                      className="w-full text-left flex items-center justify-between gap-2 hover:text-blue-700 group"
                     >
-                      {/* 顧客名（大） */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-base text-gray-900">
-                            {c.lastName} {c.firstName}
+                      <div>
+                        <span className="font-bold text-base text-gray-900 group-hover:text-blue-700">
+                          {c.lastName} {c.firstName}
+                        </span>
+                        {(c.lastNameKana || c.firstNameKana) && (
+                          <span className="ml-2 text-xs text-gray-400">
+                            {c.lastNameKana} {c.firstNameKana}
                           </span>
-                          {(c.lastNameKana || c.firstNameKana) && (
-                            <span className="ml-2 text-xs text-gray-400">
-                              {c.lastNameKana} {c.firstNameKana}
-                            </span>
-                          )}
-                          {c.phone && (
-                            <span className="ml-2 text-xs text-gray-400">{c.phone}</span>
-                          )}
-                        </div>
-                        {/* 前回来店 + 累計 */}
-                        <div className="text-right text-xs text-gray-400 ml-3 shrink-0">
+                        )}
+                        {c.phone && (
+                          <span className="ml-2 text-xs text-gray-400">{c.phone}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right text-xs text-gray-400">
                           {lastVisitLabel && (
                             <div className={`font-medium ${lastVisitDaysAgo !== null && lastVisitDaysAgo >= 180 ? "text-amber-600" : "text-gray-500"}`}>
                               前回 {lastVisitLabel}
@@ -167,22 +198,47 @@ export function VisitorBar() {
                             <div>累計 ¥{c.stats.totalAmount.toLocaleString()}</div>
                           )}
                         </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400" />
                       </div>
-                      {/* 車両 */}
-                      {c.vehicles.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {c.vehicles.map((v) => (
-                            <span
-                              key={v.id}
-                              className="text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5"
-                            >
-                              {v.maker} {v.modelName} {v.displacement}cc
-                              {v.plateNumber && ` / ${v.plateNumber}`}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </button>
+
+                    {/* 車両ごとの作業クイック追加 */}
+                    {c.vehicles.length > 0 && workItems.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {c.vehicles.map((v) => (
+                          <div key={v.id} className="pl-1">
+                            <p className="text-xs text-gray-400 mb-1">
+                              {v.maker} {v.modelName}
+                              {v.displacement ? ` ${v.displacement}cc` : ""}
+                              {v.plateNumber ? ` / ${v.plateNumber}` : ""}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {workItems.map((item) => {
+                                const key = `${v.id}-${item.id}`;
+                                return (
+                                  <button
+                                    key={item.id}
+                                    disabled={!!pendingKey}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleQuickAdd(v.id, c.id, item);
+                                    }}
+                                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors
+                                      ${pendingKey === key
+                                        ? "bg-blue-100 border-blue-300 text-blue-600 opacity-60"
+                                        : "bg-white border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
+                                      } disabled:opacity-50`}
+                                  >
+                                    {item.name}
+                                    <span className="ml-1 text-gray-400">¥{item.defaultPrice.toLocaleString()}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 );
               })}

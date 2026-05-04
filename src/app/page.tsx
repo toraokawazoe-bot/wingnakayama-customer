@@ -13,6 +13,7 @@ import {
   getInspectionExpiryAlerts,
   getDormantCustomerAlerts,
 } from "@/lib/queries/maintenance-alerts";
+import { getActiveWorkItems } from "@/lib/queries/maintenance";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,12 +32,14 @@ export default async function Home() {
     insuranceAlerts,
     inspectionExpiryAlerts,
     dormantAlerts,
+    workItems,
   ] = await Promise.all([
     getOilChangeAlerts(),
     getInspectionAlerts(),
     getCompulsoryInsuranceAlerts(),
     getInspectionExpiryAlerts(),
     getDormantCustomerAlerts(),
+    getActiveWorkItems(),
   ]);
 
   return (
@@ -117,7 +120,7 @@ export default async function Home() {
         {/* 来店受付 */}
         <section>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">来店受付</p>
-          <VisitorBar />
+          <VisitorBar workItems={workItems} />
         </section>
 
         {/* サマリーカード */}

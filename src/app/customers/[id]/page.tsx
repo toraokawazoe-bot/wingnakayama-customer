@@ -4,11 +4,13 @@ import { auth } from "@/auth";
 import { getCustomerById } from "@/lib/queries/customers";
 import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
 import { getCustomerSummary } from "@/lib/queries/customer-stats";
+import { getActiveWorkItems } from "@/lib/queries/maintenance";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
-import { ChevronLeft, Pencil, Plus, Wrench } from "lucide-react";
+import { ChevronLeft, ClipboardList, Pencil, Plus } from "lucide-react";
 import { CustomerDeleteButton } from "@/components/customer-delete-button";
 import { VehicleDeleteButton } from "@/components/vehicle-delete-button";
+import { VehicleQuickAddPanel } from "@/components/vehicle-quick-add-panel";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -33,9 +35,10 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [vehicleList, summary] = await Promise.all([
+  const [vehicleList, summary, workItems] = await Promise.all([
     getVehiclesByCustomerId(customerId),
     getCustomerSummary(customerId),
+    getActiveWorkItems(),
   ]);
   const isOwner = (session.user as { role?: string }).role === "owner";
 
@@ -240,13 +243,13 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                     </div>
                     <div className="flex gap-1">
                       <Link href={`/customers/${customerId}/vehicles/${v.id}/maintenance`}>
-                        <Button variant="outline" size="sm" className="text-xs h-7">
-                          <Wrench className="w-3 h-3 mr-1" />
-                          整備記録
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-gray-500">
+                          <ClipboardList className="w-3 h-3 mr-1" />
+                          履歴
                         </Button>
                       </Link>
                       <Link href={`/customers/${customerId}/vehicles/${v.id}/edit`}>
-                        <Button variant="outline" size="sm" className="text-xs h-7">
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-gray-500">
                           <Pencil className="w-3 h-3 mr-1" />
                           編集
                         </Button>
@@ -260,6 +263,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                       )}
                     </div>
                   </div>
+                  <VehicleQuickAddPanel vehicleId={v.id} customerId={customerId} workItems={workItems} />
                 </li>
               ))}
             </ul>
