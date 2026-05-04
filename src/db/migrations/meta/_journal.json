@@ -15,6 +15,13 @@
       "when": 1777862164140,
       "tag": "0001_known_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777863634605,
+      "tag": "0002_faulty_triton",
+      "breakpoints": true
     }
   ]
 }

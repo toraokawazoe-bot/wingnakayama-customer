@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getCustomerById } from "@/lib/queries/customers";
 import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Pencil, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2, Plus, Wrench } from "lucide-react";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -156,11 +156,19 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                       <span className="text-gray-600 font-mono">{v.plateNumber}</span>
                     )}
                   </div>
-                  <div className="text-gray-400 text-xs mt-1">
-                    {v.firstRegistrationDate && <span>初年度: {v.firstRegistrationDate} </span>}
-                    {v.createdAt instanceof Date && (
-                      <span>登録: {v.createdAt.toLocaleDateString("ja-JP")}</span>
-                    )}
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="text-gray-400 text-xs">
+                      {v.firstRegistrationDate && <span>初年度: {v.firstRegistrationDate} </span>}
+                      {v.createdAt instanceof Date && (
+                        <span>登録: {v.createdAt.toLocaleDateString("ja-JP")}</span>
+                      )}
+                    </div>
+                    <Link href={`/customers/${customerId}/vehicles/${v.id}/maintenance`}>
+                      <Button variant="outline" size="sm" className="text-xs h-7">
+                        <Wrench className="w-3 h-3 mr-1" />
+                        整備記録
+                      </Button>
+                    </Link>
                   </div>
                 </li>
               ))}
