@@ -89,7 +89,7 @@ export default async function MaintenancePage({ params }: PageProps) {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <section className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-base font-semibold mb-4">クイック追加</h2>
-          <MaintenanceQuickAdd vehicleId={vehicleIdNum} workItems={workItems} />
+          <MaintenanceQuickAdd vehicleId={vehicleIdNum} customerId={customerId} workItems={workItems} />
         </section>
 
         <section className="bg-white rounded-lg shadow-sm border p-6">

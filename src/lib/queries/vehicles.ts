@@ -1,5 +1,5 @@
 import { db, vehicles, ownerships } from "@/db";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function getVehiclesByCustomerId(customerId: number) {
   const result = await db
@@ -20,7 +20,7 @@ export async function getVehiclesByCustomerId(customerId: number) {
     })
     .from(ownerships)
     .innerJoin(vehicles, eq(ownerships.vehicleId, vehicles.id))
-    .where(eq(ownerships.customerId, customerId) && isNull(ownerships.endDate));
+    .where(and(eq(ownerships.customerId, customerId), isNull(ownerships.endDate)));
 
   return result;
 }

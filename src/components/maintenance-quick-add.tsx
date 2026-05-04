@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   quickAddMaintenanceAction,
@@ -14,10 +15,12 @@ import { Plus } from "lucide-react";
 
 type Props = {
   vehicleId: number;
+  customerId: number;
   workItems: WorkItem[];
 };
 
-export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
+export function MaintenanceQuickAdd({ vehicleId, customerId, workItems }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<number | null>(null);
 
@@ -32,11 +35,12 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
     setPendingId(item.id);
 
     startTransition(async () => {
-      const result = await quickAddMaintenanceAction(vehicleId, item.id);
+      const result = await quickAddMaintenanceAction(vehicleId, customerId, item.id);
       setPendingId(null);
 
       if (result.ok) {
         toast.success(`「${item.name}」を追加しました`);
+        router.refresh();
       } else {
         toast.error(result.error);
       }
@@ -55,11 +59,12 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
     }
 
     startCustomTransition(async () => {
-      const result = await customMaintenanceAddAction(vehicleId, customName, price);
+      const result = await customMaintenanceAddAction(vehicleId, customerId, customName, price);
       if (result.ok) {
         toast.success(`「${customName.trim()}」を追加しました`);
         setCustomName("");
         setCustomPrice("");
+        router.refresh();
       } else {
         toast.error(result.error);
       }

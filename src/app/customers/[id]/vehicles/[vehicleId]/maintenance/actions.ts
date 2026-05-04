@@ -11,6 +11,7 @@ export type QuickAddResult =
 
 export async function quickAddMaintenanceAction(
   vehicleId: number,
+  customerId: number,
   workItemId: number
 ): Promise<QuickAddResult> {
   const session = await auth();
@@ -65,6 +66,8 @@ export async function quickAddMaintenanceAction(
       });
     }
 
+    revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
+    revalidatePath(`/customers/${customerId}`);
     revalidatePath(`/customers`);
     revalidatePath(`/settings/parts`);
     revalidatePath(`/`);
@@ -82,6 +85,7 @@ export type CustomAddResult =
 
 export async function customMaintenanceAddAction(
   vehicleId: number,
+  customerId: number,
   workName: string,
   price: number
 ): Promise<CustomAddResult> {
@@ -113,6 +117,8 @@ export async function customMaintenanceAddAction(
       })
       .returning({ id: maintenanceRecords.id });
 
+    revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
+    revalidatePath(`/customers/${customerId}`);
     revalidatePath(`/customers`);
 
     return { ok: true, recordId: inserted.id };
