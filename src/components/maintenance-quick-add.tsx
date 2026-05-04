@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { quickAddMaintenanceAction } from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
+import {
+  quickAddMaintenanceAction,
+  customMaintenanceAddAction,
+} from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
 import type { WorkItem } from "@/lib/queries/maintenance";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus } from "lucide-react";
 
 type Props = {
   vehicleId: number;
@@ -15,7 +20,16 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  const [customName, setCustomName] = useState("");
+  const [customPrice, setCustomPrice] = useState("");
+  const [isCustomPending, startCustomTransition] = useTransition();
+
   const categories = Array.from(new Set(workItems.map((w) => w.category ?? "その他")));
+
+  function showToast(type: "success" | "error", message: string) {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  }
 
   function handleClick(item: WorkItem) {
     if (isPending) return;
@@ -26,12 +40,33 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
       setPendingId(null);
 
       if (result.ok) {
-        setToast({ type: "success", message: `「${item.name}」を追加しました` });
+        showToast("success", `「${item.name}」を追加しました`);
       } else {
-        setToast({ type: "error", message: result.error });
+        showToast("error", result.error);
       }
+    });
+  }
 
-      setTimeout(() => setToast(null), 3000);
+  function handleCustomAdd() {
+    const price = parseInt(customPrice, 10);
+    if (!customName.trim()) {
+      showToast("error", "作業内容を入力してください");
+      return;
+    }
+    if (isNaN(price) || price < 0) {
+      showToast("error", "金額は0以上の整数で入力してください");
+      return;
+    }
+
+    startCustomTransition(async () => {
+      const result = await customMaintenanceAddAction(vehicleId, customName, price);
+      if (result.ok) {
+        showToast("success", `「${customName.trim()}」を追加しました`);
+        setCustomName("");
+        setCustomPrice("");
+      } else {
+        showToast("error", result.error);
+      }
     });
   }
 
@@ -62,7 +97,7 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
                   key={item.id}
                   variant="outline"
                   size="default"
-                  disabled={isPending}
+                  disabled={isPending || isCustomPending}
                   onClick={() => handleClick(item)}
                   className={`text-sm ${pendingId === item.id ? "opacity-60" : ""}`}
                 >
@@ -75,6 +110,44 @@ export function MaintenanceQuickAdd({ vehicleId, workItems }: Props) {
           </div>
         </div>
       ))}
+
+      <div>
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          カスタム入力
+        </h3>
+        <div className="flex gap-2 items-start flex-wrap">
+          <Input
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            placeholder="作業内容"
+            className="w-48"
+            disabled={isCustomPending || isPending}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCustomAdd(); }}
+          />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">¥</span>
+            <Input
+              value={customPrice}
+              onChange={(e) => setCustomPrice(e.target.value)}
+              placeholder="0"
+              type="number"
+              min="0"
+              className="w-28 pl-7"
+              disabled={isCustomPending || isPending}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCustomAdd(); }}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleCustomAdd}
+            disabled={isCustomPending || isPending}
+            className="text-sm"
+          >
+            <Plus className="w-4 h-4 mr-1" /> 追加
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

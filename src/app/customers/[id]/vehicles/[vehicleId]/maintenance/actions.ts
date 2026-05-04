@@ -54,6 +54,52 @@ export async function quickAddMaintenanceAction(
   }
 }
 
+export type CustomAddResult =
+  | { ok: true; recordId: number }
+  | { ok: false; error: string };
+
+export async function customMaintenanceAddAction(
+  vehicleId: number,
+  workName: string,
+  price: number
+): Promise<CustomAddResult> {
+  const session = await auth();
+  if (!session?.user) {
+    return { ok: false, error: "ログインが必要です" };
+  }
+
+  if (!workName.trim()) {
+    return { ok: false, error: "作業内容を入力してください" };
+  }
+  if (price < 0 || !Number.isInteger(price)) {
+    return { ok: false, error: "金額は0以上の整数で入力してください" };
+  }
+
+  const staffId = session.user.id ?? null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const [inserted] = await db
+      .insert(maintenanceRecords)
+      .values({
+        vehicleId,
+        workItemId: null,
+        workName: workName.trim(),
+        price,
+        performedAt: today,
+        staffId: staffId ?? null,
+      })
+      .returning({ id: maintenanceRecords.id });
+
+    revalidatePath(`/customers`);
+
+    return { ok: true, recordId: inserted.id };
+  } catch (error) {
+    console.error("[customMaintenanceAddAction] DB insert failed:", error);
+    return { ok: false, error: "記録に失敗しました。もう一度お試しください。" };
+  }
+}
+
 export type DeleteMaintenanceResult =
   | { ok: true }
   | { ok: false; error: string };

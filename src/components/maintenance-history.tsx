@@ -70,6 +70,7 @@ export function MaintenanceHistory({ records, customerId, vehicleId }: Props) {
             <th className="pb-2 pr-4 font-medium">作業日</th>
             <th className="pb-2 pr-4 font-medium">作業内容</th>
             <th className="pb-2 pr-4 font-medium text-right">金額</th>
+            <th className="pb-2 pr-4 font-medium text-right">走行距離</th>
             <th className="pb-2 pr-4 font-medium">担当</th>
             <th className="pb-2 font-medium">操作</th>
           </tr>
@@ -86,6 +87,9 @@ export function MaintenanceHistory({ records, customerId, vehicleId }: Props) {
               </td>
               <td className="py-3 pr-4 text-right">
                 ¥{r.price.toLocaleString()}
+              </td>
+              <td className="py-3 pr-4 text-right text-gray-600 font-mono text-xs">
+                {r.mileage != null ? `${r.mileage.toLocaleString()} km` : "—"}
               </td>
               <td className="py-3 pr-4 text-gray-600">{r.staffName ?? "—"}</td>
               <td className="py-3">
