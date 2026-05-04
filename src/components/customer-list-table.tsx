@@ -4,9 +4,19 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import type { CustomerWithVehicles } from "@/lib/queries/dashboard";
 import type { CustomerStats } from "@/lib/queries/customer-stats";
 import { ChevronUp, ChevronDown } from "lucide-react";
+
+function relativeDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const days = Math.round((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (days < 7) return `${days}日前`;
+  if (days < 30) return `${Math.round(days / 7)}週間前`;
+  if (days < 365) return `${Math.round(days / 30)}ヶ月前`;
+  return `${Math.round(days / 365)}年前`;
+}
 
 type Row = CustomerWithVehicles & { stats: CustomerStats };
 type SortKey = "name" | "totalAmount" | "visitCount" | "lastVisitAt";
@@ -102,55 +112,63 @@ export function CustomerListTable({ initialRows }: { initialRows: Row[] }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sorted.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{r.lastName} {r.firstName}</div>
-                  {(r.lastNameKana || r.firstNameKana) && (
-                    <div className="text-xs text-gray-400">{r.lastNameKana} {r.firstNameKana}</div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-gray-600">{r.phone ?? "—"}</td>
-                <td className="px-4 py-3">
-                  {r.vehicles.length === 0 ? (
-                    <span className="text-gray-400 text-xs">なし</span>
-                  ) : (
-                    <div className="space-y-0.5">
-                      {r.vehicles.slice(0, 2).map((v) => (
-                        <div key={v.id} className="text-xs text-gray-600">
-                          {v.maker} {v.modelName}
-                          {v.plateNumber && <span className="ml-1 text-gray-400">{v.plateNumber}</span>}
-                        </div>
-                      ))}
-                      {r.vehicles.length > 2 && (
-                        <div className="text-xs text-gray-400">他{r.vehicles.length - 2}台</div>
-                      )}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right font-mono">
-                  {r.stats.totalAmount > 0 ? `¥${r.stats.totalAmount.toLocaleString()}` : "—"}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {r.stats.visitCount > 0 ? `${r.stats.visitCount}回` : "—"}
-                </td>
-                <td className="px-4 py-3 text-right text-gray-600">
-                  {r.stats.lastVisitAt ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <Link
-                    href={`/customers/${r.id}`}
-                    className="text-blue-600 hover:underline text-xs"
-                  >
-                    カルテ
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {sorted.map((r, idx) => {
+              const daysAgo = r.stats.lastVisitAt
+                ? Math.round((Date.now() - new Date(r.stats.lastVisitAt).getTime()) / 86400000)
+                : null;
+              const dormant = daysAgo !== null && daysAgo >= 180;
+              return (
+                <tr key={r.id} className={`hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? "" : "bg-gray-50/40"}`}>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-gray-900">{r.lastName} {r.firstName}</div>
+                    {(r.lastNameKana || r.firstNameKana) && (
+                      <div className="text-xs text-gray-400">{r.lastNameKana} {r.firstNameKana}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{r.phone ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {r.vehicles.length === 0 ? (
+                      <span className="text-gray-400 text-xs">なし</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {r.vehicles.slice(0, 2).map((v) => (
+                          <div key={v.id} className="text-xs text-gray-600">
+                            {v.maker} {v.modelName}
+                            {v.plateNumber && <span className="ml-1 text-gray-400">{v.plateNumber}</span>}
+                          </div>
+                        ))}
+                        {r.vehicles.length > 2 && (
+                          <div className="text-xs text-gray-400">他{r.vehicles.length - 2}台</div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold text-gray-800">
+                    {r.stats.totalAmount > 0 ? `¥${r.stats.totalAmount.toLocaleString()}` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {r.stats.visitCount > 0 ? `${r.stats.visitCount}回` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`text-sm ${dormant ? "text-amber-600 font-medium" : "text-gray-600"}`}>
+                      {relativeDate(r.stats.lastVisitAt)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Link
+                      href={`/customers/${r.id}`}
+                      className="text-blue-600 hover:underline text-xs"
+                    >
+                      カルテ
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {sorted.length === 0 && (
-          <div className="text-center py-8 text-sm text-gray-500">該当する顧客がいません</div>
+          <EmptyState message="該当する顧客がいません" />
         )}
       </div>
     </div>

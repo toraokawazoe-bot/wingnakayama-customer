@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getCustomerById } from "@/lib/queries/customers";
 import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
+import { getCustomerSummary } from "@/lib/queries/customer-stats";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { ChevronLeft, Pencil, Plus, Wrench } from "lucide-react";
 import { CustomerDeleteButton } from "@/components/customer-delete-button";
 import { VehicleDeleteButton } from "@/components/vehicle-delete-button";
@@ -31,7 +33,10 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const vehicleList = await getVehiclesByCustomerId(customerId);
+  const [vehicleList, summary] = await Promise.all([
+    getVehiclesByCustomerId(customerId),
+    getCustomerSummary(customerId),
+  ]);
   const isOwner = (session.user as { role?: string }).role === "owner";
 
   const fullName = `${customer.lastName} ${customer.firstName}`;
@@ -58,6 +63,68 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {/* サマリーカード */}
+        <section className="bg-white rounded-lg shadow-sm border p-5">
+          <h2 className="text-base font-semibold mb-4">利用サマリ</h2>
+          <div className="grid grid-cols-3 gap-4 mb-5">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-700">
+                {summary.totalAmount > 0 ? `¥${summary.totalAmount.toLocaleString()}` : "—"}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">累計利用額</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-700">
+                {summary.visitCount > 0 ? `${summary.visitCount}回` : "—"}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">来店回数</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-700">
+                {summary.lastVisitAt
+                  ? (() => {
+                      const days = Math.round((Date.now() - new Date(summary.lastVisitAt).getTime()) / (1000 * 60 * 60 * 24));
+                      return days < 30 ? `${days}日前` : days < 365 ? `${Math.round(days / 30)}ヶ月前` : `${Math.round(days / 365)}年前`;
+                    })()
+                  : "—"}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {summary.lastVisitAt ? `最終来店 ${summary.lastVisitAt}` : "来店記録なし"}
+              </div>
+            </div>
+          </div>
+
+          {summary.majorWorkHistory.length > 0 && (
+            <div className="border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">主要作業 最終実施</h3>
+              <div className="space-y-2">
+                {summary.majorWorkHistory.map((h) => (
+                  <div key={h.category} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-medium w-14 text-center">
+                        {h.category}
+                      </span>
+                      <span className="text-gray-700">{h.workName}</span>
+                    </div>
+                    <div className="text-right text-xs text-gray-500 shrink-0 ml-2">
+                      <span className={`font-medium ${
+                        h.daysAgo >= 365 ? "text-red-600"
+                        : h.daysAgo >= 180 ? "text-amber-600"
+                        : "text-gray-600"
+                      }`}>
+                        {h.daysAgo < 30 ? `${h.daysAgo}日前`
+                          : h.daysAgo < 365 ? `${Math.round(h.daysAgo / 30)}ヶ月前`
+                          : `${Math.round(h.daysAgo / 365)}年前`}
+                      </span>
+                      <span className="ml-1 text-gray-400">({h.performedAt})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* 基本情報 */}
         <section className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-4">
@@ -148,9 +215,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
 
           {vehicleList.length === 0 ? (
-            <div className="text-sm text-gray-500 text-center py-8">
-              車両は未登録です
-            </div>
+            <EmptyState message="車両は未登録です" />
           ) : (
             <ul className="divide-y">
               {vehicleList.map((v) => (

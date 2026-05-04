@@ -1,5 +1,5 @@
-import { db, maintenanceRecords, ownerships } from "@/db";
-import { inArray, sql } from "drizzle-orm";
+import { db, maintenanceRecords, ownerships, workItems } from "@/db";
+import { inArray, sql, eq, desc } from "drizzle-orm";
 
 export type CustomerStats = {
   totalAmount: number;
@@ -77,4 +77,68 @@ export async function getCustomerStatsMap(
 export async function getCustomerStats(customerId: number): Promise<CustomerStats> {
   const map = await getCustomerStatsMap([customerId]);
   return map.get(customerId) ?? { totalAmount: 0, visitCount: 0, lastVisitAt: null };
+}
+
+const MAJOR_CATEGORIES = ["オイル", "タイヤ", "ブレーキ", "電装", "点検", "車検"];
+
+export type WorkCategoryHistory = {
+  category: string;
+  workName: string;
+  performedAt: string;
+  daysAgo: number;
+};
+
+export type CustomerSummary = CustomerStats & {
+  majorWorkHistory: WorkCategoryHistory[];
+};
+
+export async function getCustomerSummary(customerId: number): Promise<CustomerSummary> {
+  const stats = await getCustomerStats(customerId);
+
+  const ownershipRows = await db
+    .selectDistinct({ vehicleId: ownerships.vehicleId })
+    .from(ownerships)
+    .where(eq(ownerships.customerId, customerId));
+
+  if (ownershipRows.length === 0) {
+    return { ...stats, majorWorkHistory: [] };
+  }
+
+  const vehicleIds = ownershipRows.map((r) => r.vehicleId);
+
+  const records = await db
+    .select({
+      workName: maintenanceRecords.workName,
+      performedAt: maintenanceRecords.performedAt,
+      category: workItems.category,
+    })
+    .from(maintenanceRecords)
+    .leftJoin(workItems, eq(maintenanceRecords.workItemId, workItems.id))
+    .where(inArray(maintenanceRecords.vehicleId, vehicleIds))
+    .orderBy(desc(maintenanceRecords.performedAt));
+
+  const today = new Date().toISOString().slice(0, 10);
+  const latestByCategory = new Map<string, WorkCategoryHistory>();
+
+  for (const r of records) {
+    let category = r.category ?? null;
+    if (!category) {
+      // workNameからカテゴリを推測
+      for (const cat of MAJOR_CATEGORIES) {
+        if (r.workName.includes(cat)) { category = cat; break; }
+      }
+    }
+    if (!category || !MAJOR_CATEGORIES.includes(category)) continue;
+    if (latestByCategory.has(category)) continue; // 既に最新を取得済み
+
+    const daysAgo = Math.round(
+      (new Date(today).getTime() - new Date(r.performedAt).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    latestByCategory.set(category, { category, workName: r.workName, performedAt: r.performedAt, daysAgo });
+  }
+
+  return {
+    ...stats,
+    majorWorkHistory: Array.from(latestByCategory.values()),
+  };
 }

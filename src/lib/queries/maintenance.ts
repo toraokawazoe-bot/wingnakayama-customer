@@ -22,9 +22,11 @@ export async function getMaintenanceRecordsByVehicleId(vehicleId: number) {
       memo: maintenanceRecords.memo,
       createdAt: maintenanceRecords.createdAt,
       staffName: users.displayName,
+      category: workItems.category,
     })
     .from(maintenanceRecords)
     .leftJoin(users, eq(maintenanceRecords.staffId, users.id))
+    .leftJoin(workItems, eq(maintenanceRecords.workItemId, workItems.id))
     .where(eq(maintenanceRecords.vehicleId, vehicleId))
     .orderBy(desc(maintenanceRecords.performedAt));
 }
