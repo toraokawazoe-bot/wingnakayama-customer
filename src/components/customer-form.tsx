@@ -72,7 +72,7 @@ export function CustomerForm() {
       return;
     }
 
-    setValue("prefecture", result.prefecture, { shouldValidate: true });
+    setValue("prefecture", result.prefecture as (typeof PREFECTURES)[number], { shouldValidate: true });
     setValue("city", result.city + result.town, { shouldValidate: true });
   };
 

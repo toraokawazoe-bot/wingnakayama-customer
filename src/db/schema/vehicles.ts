@@ -25,7 +25,7 @@ export const customers = sqliteTable("customers", {
 
 export const vehicles = sqliteTable("vehicles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  frameNumber: text("frame_number").notNull().unique(),
+  frameNumber: text("frame_number").unique(),
   maker: text("maker").notNull(),
   modelName: text("model_name"),
   modelCode: text("model_code"),

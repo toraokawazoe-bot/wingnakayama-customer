@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCustomerById } from "@/lib/queries/customers";
+import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Pencil, Trash2, Plus } from "lucide-react";
 
@@ -21,6 +22,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   if (!customer) {
     notFound();
   }
+
+  const vehicleList = await getVehiclesByCustomerId(customerId);
 
   const fullName = `${customer.lastName} ${customer.firstName}`;
   const fullKana =
@@ -126,15 +129,43 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         <section className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold">車両</h2>
-            <Button size="sm" disabled>
-              <Plus className="w-4 h-4 mr-1" />
-              車両を追加
-            </Button>
+            <Link href={`/customers/${customerId}/vehicles/new`}>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-1" />
+                車両を追加
+              </Button>
+            </Link>
           </div>
 
-          <div className="text-sm text-gray-500 text-center py-8">
-            車両は未登録です
-          </div>
+          {vehicleList.length === 0 ? (
+            <div className="text-sm text-gray-500 text-center py-8">
+              車両は未登録です
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {vehicleList.map((v) => (
+                <li key={v.id} className="py-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{v.maker} {v.modelName}</span>
+                      {v.displacement && (
+                        <span className="ml-2 text-gray-500">{v.displacement}cc</span>
+                      )}
+                    </div>
+                    {v.plateNumber && (
+                      <span className="text-gray-600 font-mono">{v.plateNumber}</span>
+                    )}
+                  </div>
+                  <div className="text-gray-400 text-xs mt-1">
+                    {v.firstRegistrationDate && <span>初年度: {v.firstRegistrationDate} </span>}
+                    {v.createdAt instanceof Date && (
+                      <span>登録: {v.createdAt.toLocaleDateString("ja-JP")}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </div>
