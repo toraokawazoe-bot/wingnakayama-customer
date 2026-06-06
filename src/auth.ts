@@ -6,6 +6,9 @@ import { db } from "@/db";
 import { users, accounts, sessions, verificationTokens } from "@/db/schema/auth";
 import { eq } from "drizzle-orm";
 
+// 12時間でセッション期限切れ（業務端末の共有・置き忘れ対策）
+const SESSION_MAX_AGE_SEC = 60 * 60 * 12;
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   adapter: DrizzleAdapter(db, {
@@ -14,7 +17,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SEC,
+    updateAge: 60 * 60,
+  },
   providers: [
     Credentials({
       name: "credentials",
@@ -59,14 +66,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     jwt: async ({ token, user }) => {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
+        token.role = user.role;
       }
       return token;
     },
     session: async ({ session, token }) => {
-      if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
+      if (session.user && token.id) {
+        session.user.id = token.id;
+        session.user.role = token.role ?? "staff";
       }
       return session;
     },

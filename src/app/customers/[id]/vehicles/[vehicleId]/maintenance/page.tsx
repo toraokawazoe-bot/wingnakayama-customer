@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db, vehicles, ownerships, customers } from "@/db";
 import { eq, isNull, and } from "drizzle-orm";
 import { getActiveWorkItems, getMaintenanceRecordsByVehicleId } from "@/lib/queries/maintenance";
-import { MaintenanceQuickAdd } from "@/components/maintenance-quick-add";
+import { MaintenancePickerDialog } from "@/components/maintenance-picker-dialog";
 import { MaintenanceHistory } from "@/components/maintenance-history";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
@@ -88,12 +88,15 @@ export default async function MaintenancePage({ params }: PageProps) {
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-base font-semibold mb-4">クイック追加</h2>
-          <MaintenanceQuickAdd vehicleId={vehicleIdNum} customerId={customerId} workItems={workItems} />
-        </section>
-
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-base font-semibold mb-4">整備履歴</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold">整備履歴</h2>
+            <MaintenancePickerDialog
+              vehicleId={vehicleIdNum}
+              customerId={customerId}
+              workItems={workItems}
+              vehicleName={vehicleLabel}
+            />
+          </div>
           <MaintenanceHistory records={records} customerId={customerId} vehicleId={vehicleIdNum} />
         </section>
       </main>

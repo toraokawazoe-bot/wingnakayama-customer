@@ -76,7 +76,7 @@ function EditRow({ item, onDone }: { item: WorkItem; onDone: () => void }) {
         {errors.name && <p className="text-xs text-red-500 mt-0.5">{errors.name.message}</p>}
       </td>
       <td className="px-3 py-2">
-        <Input {...register("category")} className="h-8 text-sm" placeholder="カテゴリ" />
+        <Input {...register("category")} className="h-8 text-sm" placeholder="カテゴリ" list="work-item-categories" />
       </td>
       <td className="px-3 py-2">
         <Input {...register("defaultPrice")} type="number" min="0" className="h-8 text-sm w-28" />
@@ -126,7 +126,7 @@ function AddRow({ onDone }: { onDone: () => void }) {
         {errors.name && <p className="text-xs text-red-500 mt-0.5">{errors.name.message}</p>}
       </td>
       <td className="px-3 py-2">
-        <Input {...register("category")} className="h-8 text-sm" placeholder="カテゴリ" />
+        <Input {...register("category")} className="h-8 text-sm" placeholder="カテゴリ" list="work-item-categories" />
       </td>
       <td className="px-3 py-2">
         <Input {...register("defaultPrice")} type="number" min="0" className="h-8 text-sm w-28" placeholder="0" />
@@ -327,6 +327,13 @@ export function WorkItemsManager({ initialItems, isOwner, allParts }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* カテゴリ入力の候補（選択も自由入力も可） */}
+      <datalist id="work-item-categories">
+        {categories.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
       {partsModalItem && (
         <WorkItemPartsModal
           workItem={partsModalItem}

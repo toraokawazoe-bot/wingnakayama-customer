@@ -1,28 +1,14 @@
 "use server";
 
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { sql } from "drizzle-orm";
-import * as fs from "fs";
-import * as path from "path";
-
-const TABLES = [
-  "shop_settings",
-  "users",
-  "customers",
-  "vehicles",
-  "insurances",
-  "work_items",
-  "maintenance_records",
-  "parts",
-  "work_item_parts",
-  "stock_movements",
-];
+import { createAndUploadBackup, listStoredBackups } from "@/lib/backup";
 
 export type BackupResult =
-  | { ok: true; filename: string; totalRows: number }
+  | { ok: true; filename: string; totalRows: number; encrypted: boolean }
   | { ok: false; error: string };
 
+// 手動バックアップ（Vercel Blob プライベートストアへ保存）。
+// 毎日 3:00 JST に同じ処理が Cron（/api/cron/backup）でも自動実行される。
 export async function createBackupAction(): Promise<BackupResult> {
   const session = await auth();
   if (!session?.user) return { ok: false, error: "ログインが必要です" };
@@ -31,38 +17,13 @@ export async function createBackupAction(): Promise<BackupResult> {
   if (role !== "owner") return { ok: false, error: "オーナーのみ実行できます" };
 
   try {
-    const backupsDir = path.join(process.cwd(), "backups");
-    if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
-
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").replace("T", "-").slice(0, 19);
-    const filename = `${timestamp}.json`;
-    const filepath = path.join(backupsDir, filename);
-
-    const tables: Record<string, unknown[]> = {};
-    let totalRows = 0;
-
-    for (const table of TABLES) {
-      try {
-        const rows = await db.run(sql.raw(`SELECT * FROM ${table}`));
-        const cols = rows.columns as string[];
-        const rawRows = (rows.rows as unknown) as unknown[][];
-        const mapped = rawRows.map((row) => {
-          const obj: Record<string, unknown> = {};
-          cols.forEach((col, i) => { obj[col] = row[i]; });
-          return obj;
-        });
-        tables[table] = mapped;
-        totalRows += mapped.length;
-      } catch {
-        tables[table] = [];
-      }
-    }
-
-    const backup = { version: 1, createdAt: now.toISOString(), tables };
-    fs.writeFileSync(filepath, JSON.stringify(backup, null, 2), "utf-8");
-
-    return { ok: true, filename, totalRows };
+    const result = await createAndUploadBackup();
+    return {
+      ok: true,
+      filename: result.pathname.replace(/^backups\//, ""),
+      totalRows: result.totalRows,
+      encrypted: result.encrypted,
+    };
   } catch (error) {
     console.error("[createBackupAction] failed:", error);
     return { ok: false, error: "バックアップに失敗しました" };
@@ -75,20 +36,18 @@ export async function listBackupsAction(): Promise<BackupFile[]> {
   const session = await auth();
   if (!session?.user) return [];
 
+  const role = (session.user as { role?: string }).role;
+  if (role !== "owner") return [];
+
   try {
-    const backupsDir = path.join(process.cwd(), "backups");
-    if (!fs.existsSync(backupsDir)) return [];
-
-    const files = fs.readdirSync(backupsDir)
-      .filter((f) => f.endsWith(".json"))
-      .map((name) => {
-        const stat = fs.statSync(path.join(backupsDir, name));
-        return { name, size: stat.size, createdAt: stat.birthtime.toISOString() };
-      })
-      .sort((a, b) => b.name.localeCompare(a.name));
-
-    return files;
-  } catch {
+    const backups = await listStoredBackups();
+    return backups.map((b) => ({
+      name: b.pathname.replace(/^backups\//, ""),
+      size: b.size,
+      createdAt: b.uploadedAt,
+    }));
+  } catch (error) {
+    console.error("[listBackupsAction] failed:", error);
     return [];
   }
 }

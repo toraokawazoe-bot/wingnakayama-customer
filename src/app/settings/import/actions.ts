@@ -25,7 +25,7 @@ const customerImportRowSchema = z.object({
     .optional()
     .or(z.literal(""))
     .or(z.undefined()),
-  email: z.string().email().max(200).optional().or(z.literal("")).or(z.undefined()),
+  email: z.email().max(200).optional().or(z.literal("")).or(z.undefined()),
   birthday: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -46,6 +46,11 @@ export async function importCustomersAction(
 ): Promise<ImportResult> {
   const session = await auth();
   if (!session?.user) return { ok: false, error: "ログインが必要です" };
+
+  const role = (session.user as { role?: string }).role;
+  if (role !== "owner") {
+    return { ok: false, error: "オーナーのみデータを取り込めます" };
+  }
 
   if (!Array.isArray(records) || records.length === 0) {
     return { ok: false, error: "取り込むデータがありません" };

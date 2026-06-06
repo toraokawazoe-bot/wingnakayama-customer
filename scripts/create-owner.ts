@@ -79,7 +79,7 @@ async function questionSecret(prompt: string): Promise<string> {
     process.exit(1);
   }
 
-  const passwordHash = await bcrypt.default.hash(password, 10);
+  const passwordHash = await bcrypt.default.hash(password, 12);
 
   await db.insert(users).values({
     id: crypto.randomUUID(),

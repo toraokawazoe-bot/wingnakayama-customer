@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
-import { workItems } from "./maintenance";
+import { workItems, maintenanceRecords } from "./maintenance";
 
 export const parts = sqliteTable("parts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -31,7 +31,7 @@ export const stockMovements = sqliteTable("stock_movements", {
   partId: integer("part_id").notNull().references(() => parts.id, { onDelete: "cascade" }),
   movementType: text("movement_type", { enum: ["in", "out", "adjust"] }).notNull(),
   quantity: integer("quantity").notNull(),
-  maintenanceRecordId: integer("maintenance_record_id"),
+  maintenanceRecordId: integer("maintenance_record_id").references(() => maintenanceRecords.id, { onDelete: "set null" }),
   memo: text("memo"),
   occurredAt: integer("occurred_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`).notNull(),
 });

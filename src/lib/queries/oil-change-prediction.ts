@@ -1,5 +1,6 @@
 import { db, maintenanceRecords } from "@/db";
 import { eq, like, asc, and, inArray } from "drizzle-orm";
+import { todayJst, daysBetween } from "@/lib/date";
 
 export type OilChangePrediction =
   | { stage: "no-data"; lastDate: null; urgency: "low" }
@@ -23,10 +24,6 @@ function calcUrgency(daysSinceLast: number, remainingKm: number | null): "high" 
   return "low";
 }
 
-function daysBetween(a: string, b: string): number {
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60 * 24));
-}
-
 export async function getOilChangePrediction(vehicleId: number): Promise<OilChangePrediction> {
   const records = await db
     .select({
@@ -46,7 +43,7 @@ export async function getOilChangePrediction(vehicleId: number): Promise<OilChan
     return { stage: "no-data", lastDate: null, urgency: "low" };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
   const lastRecord = records[records.length - 1];
   const daysSinceLast = daysBetween(lastRecord.performedAt, today);
 
@@ -125,7 +122,7 @@ export async function getBatchOilChangePredictions(
     grouped.get(r.vehicleId)!.push(r);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
   const result = new Map<number, OilChangePrediction>();
 
   for (const vehicleId of vehicleIds) {

@@ -1,6 +1,7 @@
 import { db, customers, vehicles, ownerships, maintenanceRecords, insurances, inspectionDates } from "@/db";
 import { eq, isNull, like, sql, lte, gte, and, lt, or } from "drizzle-orm";
 import { getBatchOilChangePredictions, type OilChangePrediction } from "./oil-change-prediction";
+import { todayJst, daysFromTodayJst, daysBetween } from "@/lib/date";
 
 type CustomerVehicleBase = {
   customerId: number;
@@ -76,9 +77,9 @@ export type InspectionAlert = CustomerVehicleBase & {
 };
 
 export async function getInspectionAlerts(): Promise<InspectionAlert[]> {
-  const sixMonthsAgoStr = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const sixMonthsAgoStr = daysFromTodayJst(-180);
   const oneYearAgoMs = Date.now() - 365 * 24 * 60 * 60 * 1000;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
 
   const rows = await db
     .select({
@@ -113,7 +114,7 @@ export async function getInspectionAlerts(): Promise<InspectionAlert[]> {
 
   return rows.map((r) => {
     const daysSinceLast = r.lastInspectionAt
-      ? Math.round((new Date(today).getTime() - new Date(r.lastInspectionAt).getTime()) / (1000 * 60 * 60 * 24))
+      ? daysBetween(r.lastInspectionAt, today)
       : null;
     const urgency: "high" | "medium" | "low" = daysSinceLast === null ? "medium"
       : daysSinceLast >= 365 ? "high"
@@ -148,8 +149,8 @@ export type InsuranceAlert = CustomerVehicleBase & {
 };
 
 export async function getCompulsoryInsuranceAlerts(): Promise<InsuranceAlert[]> {
-  const today = new Date().toISOString().slice(0, 10);
-  const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = todayJst();
+  const in90Days = daysFromTodayJst(90);
 
   const rows = await db
     .select({
@@ -178,9 +179,7 @@ export async function getCompulsoryInsuranceAlerts(): Promise<InsuranceAlert[]> 
   return rows
     .filter((r): r is typeof r & { endDate: string } => r.endDate !== null)
     .map((r) => {
-      const daysUntilExpiry = Math.round(
-        (new Date(r.endDate).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const daysUntilExpiry = daysBetween(today, r.endDate);
       const urgency: "high" | "medium" | "low" =
         daysUntilExpiry <= 30 ? "high" : daysUntilExpiry <= 60 ? "medium" : "low";
       return {
@@ -210,8 +209,8 @@ export type InspectionExpiryAlert = CustomerVehicleBase & {
 };
 
 export async function getInspectionExpiryAlerts(): Promise<InspectionExpiryAlert[]> {
-  const today = new Date().toISOString().slice(0, 10);
-  const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = todayJst();
+  const in90Days = daysFromTodayJst(90);
 
   const rows = await db
     .select({
@@ -239,9 +238,7 @@ export async function getInspectionExpiryAlerts(): Promise<InspectionExpiryAlert
     );
 
   return rows.map((r) => {
-    const daysUntilExpiry = Math.round(
-      (new Date(r.expiryDate).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysUntilExpiry = daysBetween(today, r.expiryDate);
     const urgency: "high" | "medium" | "low" =
       daysUntilExpiry <= 30 ? "high" : daysUntilExpiry <= 60 ? "medium" : "low";
     return {
@@ -273,9 +270,9 @@ export type DormantCustomerAlert = {
 };
 
 export async function getDormantCustomerAlerts(): Promise<DormantCustomerAlert[]> {
-  const sixMonthsAgoStr = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const sixMonthsAgoStr = daysFromTodayJst(-180);
   const sixMonthsAgoDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
 
   const rows = await db
     .select({
@@ -301,7 +298,7 @@ export async function getDormantCustomerAlerts(): Promise<DormantCustomerAlert[]
 
   return rows.map((r) => {
     const daysSinceLast = r.lastVisitAt
-      ? Math.round((new Date(today).getTime() - new Date(r.lastVisitAt).getTime()) / (1000 * 60 * 60 * 24))
+      ? daysBetween(r.lastVisitAt, today)
       : null;
     const urgency: "high" | "medium" | "low" =
       daysSinceLast === null ? "medium"

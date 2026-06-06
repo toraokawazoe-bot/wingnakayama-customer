@@ -4,7 +4,10 @@ import { useState, useRef, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { visitorSearchAction } from "@/app/actions/visitor-search";
-import { quickAddMaintenanceAction } from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
+import {
+  quickAddMaintenanceAction,
+  undoMaintenanceAddAction,
+} from "@/app/customers/[id]/vehicles/[vehicleId]/maintenance/actions";
 import type { CustomerSearchResult } from "@/lib/queries/customer-search";
 import type { WorkItem } from "@/lib/queries/maintenance";
 import { CustomerLightForm } from "@/components/customer-light-form";
@@ -90,6 +93,7 @@ export function VisitorBar({ workItems }: Props) {
   const handleQuickAdd = (
     vehicleId: number,
     customerId: number,
+    customerName: string,
     item: WorkItem
   ) => {
     const key = `${vehicleId}-${item.id}`;
@@ -99,8 +103,31 @@ export function VisitorBar({ workItems }: Props) {
       const result = await quickAddMaintenanceAction(vehicleId, customerId, item.id);
       setPendingKey(null);
       if (result.ok) {
-        toast.success(`「${item.name}」を記録しました`);
+        const recordId = result.recordId;
+        // 誰に何を記録したか＋領収書／取り消しの導線をトーストに残す（押し間違い対策）
+        toast.success(`${customerName}様「${item.name}」を記録しました`, {
+          duration: 15000,
+          description: `¥${item.defaultPrice.toLocaleString()}`,
+          action: {
+            label: "領収書を印刷",
+            onClick: () => router.push(`/maintenance/${recordId}/receipt`),
+          },
+          cancel: {
+            label: "取り消す",
+            onClick: () => {
+              startTransition(async () => {
+                const undo = await undoMaintenanceAddAction(recordId, customerId, vehicleId);
+                if (undo.ok) {
+                  toast.success("取り消しました");
+                } else {
+                  toast.error(undo.error);
+                }
+              });
+            },
+          },
+        });
         closeAndClear();
+        router.refresh();
       } else {
         toast.error(result.error);
       }
@@ -221,9 +248,9 @@ export function VisitorBar({ workItems }: Props) {
                                     disabled={!!pendingKey}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleQuickAdd(v.id, c.id, item);
+                                      handleQuickAdd(v.id, c.id, `${c.lastName} ${c.firstName}`, item);
                                     }}
-                                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors
+                                    className={`px-3 py-2 text-sm rounded-full border transition-colors
                                       ${pendingKey === key
                                         ? "bg-blue-100 border-blue-300 text-blue-600 opacity-60"
                                         : "bg-white border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"

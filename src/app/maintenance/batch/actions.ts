@@ -2,7 +2,7 @@
 
 import { db, maintenanceRecords, workItemParts, parts, stockMovements } from "@/db";
 import { eq } from "drizzle-orm";
-import { auth } from "@/auth";
+import { requireAuth, assertVehiclesAccess } from "@/lib/auth-guards";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -25,10 +25,10 @@ export type BatchAddResult =
 export async function batchAddMaintenanceAction(
   items: unknown[]
 ): Promise<BatchAddResult> {
-  const session = await auth();
-  if (!session?.user) return { ok: false, error: "ログインが必要です" };
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult;
 
-  const staffId = session.user.id ?? null;
+  const staffId = authResult.userId;
 
   const parsed = batchInputSchema.safeParse(items);
   if (!parsed.success) {
@@ -38,6 +38,12 @@ export async function batchAddMaintenanceAction(
   }
 
   const validItems = parsed.data;
+
+  // 受け取った全 vehicleId の存在確認（多店舗化したら所有店舗チェックも）
+  const vehicleAccess = await assertVehiclesAccess(
+    validItems.map((i) => i.vehicleId)
+  );
+  if (!vehicleAccess.ok) return vehicleAccess;
 
   try {
     await db.transaction(async (tx) => {
@@ -66,7 +72,6 @@ export async function batchAddMaintenanceAction(
             .where(eq(workItemParts.workItemId, item.workItemId));
 
           for (const lp of linkedParts) {
-            // current_stock は SQL で引き算（同トランザクション内）
             const current = await tx
               .select({ currentStock: parts.currentStock })
               .from(parts)

@@ -12,6 +12,12 @@ export default async function ShopSettingsPage() {
     redirect("/login");
   }
 
+  // 更新アクションはオーナー限定のため、ページ自体もオーナー以外は表示しない
+  const role = (session.user as { role?: string }).role;
+  if (role !== "owner") {
+    redirect("/");
+  }
+
   const shop = await getShopSettings();
 
   return (

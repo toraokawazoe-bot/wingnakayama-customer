@@ -4,13 +4,19 @@ import { auth } from "@/auth";
 import { getCustomerById } from "@/lib/queries/customers";
 import { getVehiclesByCustomerId } from "@/lib/queries/vehicles";
 import { getCustomerSummary } from "@/lib/queries/customer-stats";
-import { getActiveWorkItems } from "@/lib/queries/maintenance";
+import { getActiveWorkItems, getMaintenanceRecordsByCustomerId } from "@/lib/queries/maintenance";
+import { getDealsByCustomerId } from "@/lib/queries/deals";
+import { getCustomerSuggestions } from "@/lib/queries/customer-suggestions";
+import { todayJst } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
-import { ChevronLeft, ClipboardList, Pencil, Plus } from "lucide-react";
+import { Cake, ChevronLeft, ClipboardList, Mail, MapPin, Pencil, Phone, Plus } from "lucide-react";
 import { CustomerDeleteButton } from "@/components/customer-delete-button";
 import { VehicleDeleteButton } from "@/components/vehicle-delete-button";
-import { VehicleQuickAddPanel } from "@/components/vehicle-quick-add-panel";
+import { MaintenancePickerDialog } from "@/components/maintenance-picker-dialog";
+import { DealsPanel } from "@/components/deals-panel";
+import { CustomerMaintenanceHistory } from "@/components/customer-maintenance-history";
+import { CustomerSuggestionsPanel } from "@/components/customer-suggestions-panel";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -35,10 +41,13 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [vehicleList, summary, workItems] = await Promise.all([
+  const [vehicleList, summary, workItems, dealList, maintenanceList, suggestions] = await Promise.all([
     getVehiclesByCustomerId(customerId),
     getCustomerSummary(customerId),
     getActiveWorkItems(),
+    getDealsByCustomerId(customerId),
+    getMaintenanceRecordsByCustomerId(customerId),
+    getCustomerSuggestions(customerId),
   ]);
   const isOwner = (session.user as { role?: string }).role === "owner";
 
@@ -51,10 +60,22 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     .filter(Boolean)
     .join("");
 
+  // 生年月日から年齢を計算（パースできない形式なら非表示）
+  const age = (() => {
+    if (!customer.birthday) return null;
+    const b = new Date(customer.birthday);
+    if (isNaN(b.getTime())) return null;
+    const now = new Date();
+    let a = now.getFullYear() - b.getFullYear();
+    const m = now.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+    return a >= 0 && a < 130 ? a : null;
+  })();
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-2">
+      <header className="bg-white border-b sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2">
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ChevronLeft className="w-4 h-4 mr-1" />
@@ -65,148 +86,135 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* サマリーカード */}
-        <section className="bg-white rounded-lg shadow-sm border p-5">
-          <h2 className="text-base font-semibold mb-4">利用サマリ</h2>
-          <div className="grid grid-cols-3 gap-4 mb-5">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-700">
-                {summary.totalAmount > 0 ? `¥${summary.totalAmount.toLocaleString()}` : "—"}
-              </div>
-              <div className="text-xs text-gray-500 mt-0.5">累計利用額</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-700">
-                {summary.visitCount > 0 ? `${summary.visitCount}回` : "—"}
-              </div>
-              <div className="text-xs text-gray-500 mt-0.5">来店回数</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-700">
-                {summary.lastVisitAt
-                  ? (() => {
-                      const days = Math.round((Date.now() - new Date(summary.lastVisitAt).getTime()) / (1000 * 60 * 60 * 24));
-                      return days < 30 ? `${days}日前` : days < 365 ? `${Math.round(days / 30)}ヶ月前` : `${Math.round(days / 365)}年前`;
-                    })()
-                  : "—"}
-              </div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                {summary.lastVisitAt ? `最終来店 ${summary.lastVisitAt}` : "来店記録なし"}
-              </div>
-            </div>
-          </div>
-
-          {summary.majorWorkHistory.length > 0 && (
-            <div className="border-t pt-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">主要作業 最終実施</h3>
-              <div className="space-y-2">
-                {summary.majorWorkHistory.map((h) => (
-                  <div key={h.category} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-medium w-14 text-center">
-                        {h.category}
-                      </span>
-                      <span className="text-gray-700">{h.workName}</span>
-                    </div>
-                    <div className="text-right text-xs text-gray-500 shrink-0 ml-2">
-                      <span className={`font-medium ${
-                        h.daysAgo >= 365 ? "text-red-600"
-                        : h.daysAgo >= 180 ? "text-amber-600"
-                        : "text-gray-600"
-                      }`}>
-                        {h.daysAgo < 30 ? `${h.daysAgo}日前`
-                          : h.daysAgo < 365 ? `${Math.round(h.daysAgo / 30)}ヶ月前`
-                          : `${Math.round(h.daysAgo / 365)}年前`}
-                      </span>
-                      <span className="ml-1 text-gray-400">({h.performedAt})</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* 基本情報 */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold">基本情報</h2>
-            <div className="flex gap-2">
-              <Link href={`/customers/${customerId}/edit`}>
-                <Button variant="outline" size="sm">
-                  <Pencil className="w-4 h-4 mr-1" />
-                  編集
-                </Button>
-              </Link>
-              {isOwner && (
-                <CustomerDeleteButton customerId={customerId} customerName={fullName} />
-              )}
-            </div>
-          </div>
-
-          <dl className="grid grid-cols-[120px_1fr] gap-y-3 text-sm">
-            <dt className="text-gray-600">お名前</dt>
-            <dd>{fullName}</dd>
-
-            {fullKana && (
-              <>
-                <dt className="text-gray-600">フリガナ</dt>
-                <dd>{fullKana}</dd>
-              </>
-            )}
-
-            {customer.phone && (
-              <>
-                <dt className="text-gray-600">電話番号</dt>
-                <dd>{customer.phone}</dd>
-              </>
-            )}
-
-            {customer.email && (
-              <>
-                <dt className="text-gray-600">メールアドレス</dt>
-                <dd>{customer.email}</dd>
-              </>
-            )}
-
-            {(customer.postalCode || fullAddress) && (
-              <>
-                <dt className="text-gray-600">住所</dt>
-                <dd>
-                  {customer.postalCode && (
-                    <div className="text-gray-500">〒{customer.postalCode}</div>
+      <main className="max-w-6xl mx-auto px-4 py-5 sm:py-8 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+        {/* 顧客情報（カルテの顔・基本情報＋利用サマリを1枚に） */}
+        <section className="lg:col-span-2 bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-8">
+            {/* 左：基本情報 */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {fullKana && (
+                    <div className="text-xs text-gray-400 tracking-wider">{fullKana}</div>
                   )}
-                  {fullAddress}
-                </dd>
-              </>
-            )}
+                  <h2 className="text-2xl sm:text-3xl font-bold leading-tight">
+                    {fullName}
+                    <span className="text-base font-normal text-gray-500 ml-1">様</span>
+                  </h2>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Link href={`/customers/${customerId}/edit`}>
+                    <Button variant="outline" size="sm">
+                      <Pencil className="w-4 h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">編集</span>
+                    </Button>
+                  </Link>
+                  {isOwner && (
+                    <CustomerDeleteButton customerId={customerId} customerName={fullName} />
+                  )}
+                </div>
+              </div>
 
-            {customer.birthday && (
-              <>
-                <dt className="text-gray-600">生年月日</dt>
-                <dd>{customer.birthday}</dd>
-              </>
-            )}
+              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                {customer.phone && (
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="flex items-center gap-1.5 text-blue-700 font-semibold text-lg"
+                  >
+                    <Phone className="w-4 h-4" />
+                    {customer.phone}
+                  </a>
+                )}
+                {customer.email && (
+                  <span className="flex items-center gap-1.5 text-gray-600 break-all">
+                    <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+                    {customer.email}
+                  </span>
+                )}
+                {customer.birthday && (
+                  <span className="flex items-center gap-1.5 text-gray-600">
+                    <Cake className="w-4 h-4 text-gray-400" />
+                    {customer.birthday}
+                    {age !== null && <span className="text-gray-400">（{age}歳）</span>}
+                  </span>
+                )}
+              </div>
 
-            <dt className="text-gray-600">登録日</dt>
-            <dd>
-              {customer.createdAt instanceof Date
-                ? customer.createdAt.toLocaleDateString("ja-JP")
-                : ""}
-            </dd>
-          </dl>
+              {(customer.postalCode || fullAddress) && (
+                <div className="mt-2 flex items-start gap-1.5 text-sm text-gray-600">
+                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <span>
+                    {customer.postalCode && (
+                      <span className="text-gray-400 mr-1.5">〒{customer.postalCode}</span>
+                    )}
+                    {fullAddress}
+                  </span>
+                </div>
+              )}
 
-          {customer.memo && (
-            <div className="mt-4 pt-4 border-t">
-              <div className="text-sm text-gray-600 mb-1">メモ</div>
-              <div className="text-sm whitespace-pre-wrap">{customer.memo}</div>
+              {customer.memo && (
+                <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm whitespace-pre-wrap">
+                  {customer.memo}
+                </div>
+              )}
+
+              <div className="mt-3 text-xs text-gray-400">
+                登録日{" "}
+                {customer.createdAt instanceof Date
+                  ? customer.createdAt.toLocaleDateString("ja-JP")
+                  : ""}
+              </div>
             </div>
-          )}
+
+            {/* 右：利用サマリ（カードを分けず一目で） */}
+            <div className="lg:w-64 shrink-0 lg:border-l lg:pl-6 space-y-2">
+              <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2.5">
+                <span className="text-xs font-medium text-green-800/70">累計利用額</span>
+                <span className="text-xl font-bold text-green-700">
+                  {summary.totalAmount > 0 ? `¥${summary.totalAmount.toLocaleString()}` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2.5">
+                <span className="text-xs font-medium text-blue-800/70">来店回数</span>
+                <span className="text-xl font-bold text-blue-700">
+                  {summary.visitCount > 0 ? `${summary.visitCount}回` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2.5">
+                <span className="text-xs font-medium text-gray-500">最終来店</span>
+                <span className="text-right">
+                  <span className="text-xl font-bold text-gray-700">
+                    {summary.lastVisitAt
+                      ? (() => {
+                          const days = Math.round((Date.now() - new Date(summary.lastVisitAt).getTime()) / (1000 * 60 * 60 * 24));
+                          return days <= 0 ? "今日" : days === 1 ? "昨日" : days < 30 ? `${days}日前` : days < 365 ? `${Math.round(days / 30)}ヶ月前` : `${Math.round(days / 365)}年前`;
+                        })()
+                      : "—"}
+                  </span>
+                  {summary.lastVisitAt && (
+                    <span className="block text-[10px] text-gray-400 -mt-0.5">{summary.lastVisitAt}</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
         </section>
 
+        {/* 本日のご提案（全幅・接客時の声がけ用） */}
+        {suggestions.length > 0 && (
+          <div className="lg:col-span-2">
+            <CustomerSuggestionsPanel
+              customerId={customerId}
+              suggestions={suggestions}
+              workItems={workItems}
+            />
+          </div>
+        )}
+
+        {/* 左ペイン：車両・整備履歴 */}
+        <div className="space-y-4 sm:space-y-6">
         {/* 車両 */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
+        <section className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold">車両</h2>
             <Link href={`/customers/${customerId}/vehicles/new`}>
@@ -222,35 +230,37 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           ) : (
             <ul className="divide-y">
               {vehicleList.map((v) => (
-                <li key={v.id} className="py-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-medium">{v.maker} {v.modelName}</span>
-                      {v.displacement && (
-                        <span className="ml-2 text-gray-500">{v.displacement}cc</span>
-                      )}
+                <li key={v.id} className="py-4 first:pt-0 last:pb-0 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base font-bold">{v.maker} {v.modelName}</span>
+                        {v.displacement && (
+                          <span className="text-gray-500">{v.displacement}cc</span>
+                        )}
+                        {v.plateNumber && (
+                          <span className="text-xs font-mono px-1.5 py-0.5 rounded border bg-gray-50 text-gray-600">
+                            {v.plateNumber}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {v.firstRegistrationDate && <span className="mr-3">初年度 {v.firstRegistrationDate}</span>}
+                        {v.createdAt instanceof Date && (
+                          <span>登録 {v.createdAt.toLocaleDateString("ja-JP")}</span>
+                        )}
+                      </div>
                     </div>
-                    {v.plateNumber && (
-                      <span className="text-gray-600 font-mono">{v.plateNumber}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <div className="text-gray-400 text-xs">
-                      {v.firstRegistrationDate && <span>初年度: {v.firstRegistrationDate} </span>}
-                      {v.createdAt instanceof Date && (
-                        <span>登録: {v.createdAt.toLocaleDateString("ja-JP")}</span>
-                      )}
-                    </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-0.5 shrink-0">
                       <Link href={`/customers/${customerId}/vehicles/${v.id}/maintenance`}>
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-gray-500">
-                          <ClipboardList className="w-3 h-3 mr-1" />
+                        <Button variant="ghost" size="sm" className="text-sm h-9 px-2.5 text-gray-500">
+                          <ClipboardList className="w-4 h-4 mr-1" />
                           履歴
                         </Button>
                       </Link>
                       <Link href={`/customers/${customerId}/vehicles/${v.id}/edit`}>
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-gray-500">
-                          <Pencil className="w-3 h-3 mr-1" />
+                        <Button variant="ghost" size="sm" className="text-sm h-9 px-2.5 text-gray-500">
+                          <Pencil className="w-4 h-4 mr-1" />
                           編集
                         </Button>
                       </Link>
@@ -263,12 +273,44 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                       )}
                     </div>
                   </div>
-                  <VehicleQuickAddPanel vehicleId={v.id} customerId={customerId} workItems={workItems} />
+                  <div className="mt-3">
+                    <MaintenancePickerDialog
+                      vehicleId={v.id}
+                      customerId={customerId}
+                      workItems={workItems}
+                      vehicleName={`${v.maker} ${v.modelName}`}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
+
+        {/* 整備履歴（全車両横断） */}
+        <section className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-semibold">整備履歴</h2>
+            <span className="text-xs text-gray-400">{maintenanceList.length}件</span>
+          </div>
+          <CustomerMaintenanceHistory
+            records={maintenanceList}
+            customerId={customerId}
+            isOwner={isOwner}
+            showVehicle={vehicleList.length > 1}
+          />
+        </section>
+        </div>
+
+        {/* 右ペイン：購入記録 */}
+        <div className="space-y-4 sm:space-y-6">
+        <DealsPanel
+          customerId={customerId}
+          deals={dealList}
+          isOwner={isOwner}
+          today={todayJst()}
+        />
+        </div>
       </main>
     </div>
   );

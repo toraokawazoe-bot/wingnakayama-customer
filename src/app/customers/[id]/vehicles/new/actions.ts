@@ -4,6 +4,7 @@ import { db, vehicles, ownerships } from "@/db";
 import { vehicleFormSchema, type VehicleFormData } from "@/lib/schemas/vehicle";
 import { getCustomerById } from "@/lib/queries/customers";
 import { auth } from "@/auth";
+import { todayJst } from "@/lib/date";
 
 export type CreateVehicleResult =
   | { ok: true; vehicleId: number }
@@ -33,7 +34,7 @@ export async function createVehicleAction(
   }
 
   const v = parsed.data;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
 
   try {
     const vehicleId = await db.transaction(async (tx) => {

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { requireAuth, assertMaintenanceRecordAccess } from "@/lib/auth-guards";
 import { getMaintenanceRecordById } from "@/lib/queries/maintenance";
 import { getShopSettings } from "@/lib/queries/shop";
 import { PrintButton } from "./print-button";
@@ -9,8 +9,8 @@ type PageProps = {
 };
 
 export default async function ReceiptPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) {
+  const authResult = await requireAuth();
+  if (!authResult.ok) {
     redirect("/login");
   }
 
@@ -18,6 +18,12 @@ export default async function ReceiptPage({ params }: PageProps) {
   const id = parseInt(recordId, 10);
 
   if (isNaN(id)) {
+    notFound();
+  }
+
+  // IDOR ガード: recordId のアクセス権限確認（多店舗化時はここで shop 境界もチェック）
+  const access = await assertMaintenanceRecordAccess(id);
+  if (!access.ok) {
     notFound();
   }
 

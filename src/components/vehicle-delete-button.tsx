@@ -41,9 +41,9 @@ export function VehicleDeleteButton({ vehicleId, customerId, vehicleName }: Prop
       size="sm"
       disabled={isPending}
       onClick={handleDelete}
-      className="text-xs h-7 text-red-600 hover:text-red-700 hover:border-red-300"
+      className="text-sm h-9 text-red-600 hover:text-red-700 hover:border-red-300"
     >
-      <Trash2 className="w-3 h-3 mr-1" />
+      <Trash2 className="w-3.5 h-3.5 mr-1" />
       {isPending ? "削除中..." : "削除"}
     </Button>
   );

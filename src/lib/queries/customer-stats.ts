@@ -1,5 +1,6 @@
 import { db, maintenanceRecords, ownerships, workItems } from "@/db";
 import { inArray, sql, eq, desc } from "drizzle-orm";
+import { todayJst, daysBetween } from "@/lib/date";
 
 export type CustomerStats = {
   totalAmount: number;
@@ -117,7 +118,7 @@ export async function getCustomerSummary(customerId: number): Promise<CustomerSu
     .where(inArray(maintenanceRecords.vehicleId, vehicleIds))
     .orderBy(desc(maintenanceRecords.performedAt));
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
   const latestByCategory = new Map<string, WorkCategoryHistory>();
 
   for (const r of records) {
@@ -131,9 +132,7 @@ export async function getCustomerSummary(customerId: number): Promise<CustomerSu
     if (!category || !MAJOR_CATEGORIES.includes(category)) continue;
     if (latestByCategory.has(category)) continue; // 既に最新を取得済み
 
-    const daysAgo = Math.round(
-      (new Date(today).getTime() - new Date(r.performedAt).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysAgo = daysBetween(r.performedAt, today);
     latestByCategory.set(category, { category, workName: r.workName, performedAt: r.performedAt, daysAgo });
   }
 

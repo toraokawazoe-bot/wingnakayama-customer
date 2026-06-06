@@ -2,7 +2,13 @@
 
 import { db, maintenanceRecords, workItems, workItemParts, parts, stockMovements } from "@/db";
 import { eq, sql } from "drizzle-orm";
-import { auth } from "@/auth";
+import {
+  requireAuth,
+  requireOwner,
+  assertVehicleAccess,
+  assertMaintenanceRecordAccess,
+} from "@/lib/auth-guards";
+import { todayJst } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 export type QuickAddResult =
@@ -14,12 +20,13 @@ export async function quickAddMaintenanceAction(
   customerId: number,
   workItemId: number
 ): Promise<QuickAddResult> {
-  const session = await auth();
-  if (!session?.user) {
-    return { ok: false, error: "ログインが必要です" };
-  }
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult;
 
-  const staffId = session.user.id ?? null;
+  const vehicleAccess = await assertVehicleAccess(vehicleId);
+  if (!vehicleAccess.ok) return vehicleAccess;
+
+  const staffId = authResult.userId;
 
   const item = await db
     .select()
@@ -31,40 +38,43 @@ export async function quickAddMaintenanceAction(
     return { ok: false, error: "作業マスタが見つかりません" };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayJst();
 
   try {
-    const [inserted] = await db
-      .insert(maintenanceRecords)
-      .values({
-        vehicleId,
-        workItemId: item[0].id,
-        workName: item[0].name,
-        price: item[0].defaultPrice,
-        performedAt: today,
-        staffId: staffId ?? null,
-      })
-      .returning({ id: maintenanceRecords.id });
+    const insertedId = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(maintenanceRecords)
+        .values({
+          vehicleId,
+          workItemId: item[0].id,
+          workName: item[0].name,
+          price: item[0].defaultPrice,
+          performedAt: today,
+          staffId,
+        })
+        .returning({ id: maintenanceRecords.id });
 
-    // 使用部品の在庫を自動消費（在庫不足でも続行、警告のみ）
-    const linkedParts = await db
-      .select({ partId: workItemParts.partId, quantity: workItemParts.quantity })
-      .from(workItemParts)
-      .where(eq(workItemParts.workItemId, item[0].id));
+      const linkedParts = await tx
+        .select({ partId: workItemParts.partId, quantity: workItemParts.quantity })
+        .from(workItemParts)
+        .where(eq(workItemParts.workItemId, item[0].id));
 
-    for (const lp of linkedParts) {
-      await db
-        .update(parts)
-        .set({ currentStock: sql`${parts.currentStock} - ${lp.quantity}` })
-        .where(eq(parts.id, lp.partId));
-      await db.insert(stockMovements).values({
-        partId: lp.partId,
-        movementType: "out",
-        quantity: -lp.quantity,
-        maintenanceRecordId: inserted.id,
-        memo: `自動消費: ${item[0].name}`,
-      });
-    }
+      for (const lp of linkedParts) {
+        await tx
+          .update(parts)
+          .set({ currentStock: sql`${parts.currentStock} - ${lp.quantity}` })
+          .where(eq(parts.id, lp.partId));
+        await tx.insert(stockMovements).values({
+          partId: lp.partId,
+          movementType: "out",
+          quantity: -lp.quantity,
+          maintenanceRecordId: inserted.id,
+          memo: `自動消費: ${item[0].name}`,
+        });
+      }
+
+      return inserted.id;
+    });
 
     revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
     revalidatePath(`/customers/${customerId}`);
@@ -72,7 +82,7 @@ export async function quickAddMaintenanceAction(
     revalidatePath(`/settings/parts`);
     revalidatePath(`/`);
 
-    return { ok: true, recordId: inserted.id };
+    return { ok: true, recordId: insertedId };
   } catch (error) {
     console.error("[quickAddMaintenanceAction] DB insert failed:", error);
     return { ok: false, error: "記録に失敗しました。もう一度お試しください。" };
@@ -89,10 +99,11 @@ export async function customMaintenanceAddAction(
   workName: string,
   price: number
 ): Promise<CustomAddResult> {
-  const session = await auth();
-  if (!session?.user) {
-    return { ok: false, error: "ログインが必要です" };
-  }
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult;
+
+  const vehicleAccess = await assertVehicleAccess(vehicleId);
+  if (!vehicleAccess.ok) return vehicleAccess;
 
   if (!workName.trim()) {
     return { ok: false, error: "作業内容を入力してください" };
@@ -101,8 +112,8 @@ export async function customMaintenanceAddAction(
     return { ok: false, error: "金額は0以上の整数で入力してください" };
   }
 
-  const staffId = session.user.id ?? null;
-  const today = new Date().toISOString().slice(0, 10);
+  const staffId = authResult.userId;
+  const today = todayJst();
 
   try {
     const [inserted] = await db
@@ -113,13 +124,14 @@ export async function customMaintenanceAddAction(
         workName: workName.trim(),
         price,
         performedAt: today,
-        staffId: staffId ?? null,
+        staffId,
       })
       .returning({ id: maintenanceRecords.id });
 
     revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
     revalidatePath(`/customers/${customerId}`);
     revalidatePath(`/customers`);
+    revalidatePath(`/`);
 
     return { ok: true, recordId: inserted.id };
   } catch (error) {
@@ -132,27 +144,94 @@ export type DeleteMaintenanceResult =
   | { ok: true }
   | { ok: false; error: string };
 
+// クイック追加直後の誤登録の取り消し（記録した本人 or オーナー・15分以内のみ）
+const UNDO_WINDOW_MS = 15 * 60 * 1000;
+
+export async function undoMaintenanceAddAction(
+  recordId: number,
+  customerId: number,
+  vehicleId: number
+): Promise<DeleteMaintenanceResult> {
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult;
+
+  const vehicleAccess = await assertVehicleAccess(vehicleId);
+  if (!vehicleAccess.ok) return vehicleAccess;
+
+  const [record] = await db
+    .select()
+    .from(maintenanceRecords)
+    .where(eq(maintenanceRecords.id, recordId))
+    .limit(1);
+
+  if (!record || record.vehicleId !== vehicleId) {
+    return { ok: false, error: "記録が見つかりません" };
+  }
+  if (authResult.role !== "owner" && record.staffId !== authResult.userId) {
+    return { ok: false, error: "自分が記録したものだけ取り消せます" };
+  }
+  if (Date.now() - record.createdAt.getTime() > UNDO_WINDOW_MS) {
+    return { ok: false, error: "取り消せるのは記録から15分以内です（オーナーは整備履歴から削除できます）" };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // 自動消費した部品在庫を戻し、入出庫履歴ごと取り消す
+      const movements = await tx
+        .select()
+        .from(stockMovements)
+        .where(eq(stockMovements.maintenanceRecordId, recordId));
+      for (const m of movements) {
+        await tx
+          .update(parts)
+          .set({ currentStock: sql`${parts.currentStock} - ${m.quantity}` })
+          .where(eq(parts.id, m.partId));
+      }
+      await tx.delete(stockMovements).where(eq(stockMovements.maintenanceRecordId, recordId));
+      await tx.delete(maintenanceRecords).where(eq(maintenanceRecords.id, recordId));
+    });
+
+    revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
+    revalidatePath(`/customers/${customerId}`);
+    revalidatePath(`/customers`);
+    revalidatePath(`/settings/parts`);
+    revalidatePath(`/`);
+
+    return { ok: true };
+  } catch (error) {
+    console.error("[undoMaintenanceAddAction] DB delete failed:", error);
+    return { ok: false, error: "取り消しに失敗しました。もう一度お試しください。" };
+  }
+}
+
 export async function deleteMaintenanceRecordAction(
   recordId: number,
   customerId: number,
   vehicleId: number
 ): Promise<DeleteMaintenanceResult> {
-  const session = await auth();
-  if (!session?.user) {
-    return { ok: false, error: "ログインが必要です" };
-  }
+  const ownerResult = await requireOwner();
+  if (!ownerResult.ok) return ownerResult;
 
-  const role = (session.user as { role?: string }).role;
-  if (role !== "owner") {
-    return { ok: false, error: "オーナーのみ削除できます" };
+  // 該当 vehicleId のアクセス確認（IDOR ガード）
+  const vehicleAccess = await assertVehicleAccess(vehicleId);
+  if (!vehicleAccess.ok) return vehicleAccess;
+
+  // recordId が指定 vehicleId に属することを確認（IDOR ガード）
+  const recordAccess = await assertMaintenanceRecordAccess(recordId);
+  if (!recordAccess.ok) return recordAccess;
+  if (recordAccess.vehicleId !== vehicleId) {
+    return { ok: false, error: "整備記録が見つかりません" };
   }
 
   try {
+    // stockMovements は ON DELETE SET NULL のため履歴は残る
     await db
       .delete(maintenanceRecords)
       .where(eq(maintenanceRecords.id, recordId));
 
     revalidatePath(`/customers/${customerId}/vehicles/${vehicleId}/maintenance`);
+    revalidatePath(`/customers/${customerId}`);
+    revalidatePath(`/`);
 
     return { ok: true };
   } catch (error) {

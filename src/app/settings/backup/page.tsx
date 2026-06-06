@@ -55,8 +55,8 @@ export default function BackupPage() {
             今すぐバックアップ
           </h2>
           <p className="text-sm text-gray-500">
-            全データ（顧客・車両・整備記録・在庫など）をJSONファイルとしてサーバーの
-            <code className="bg-gray-100 px-1 rounded">backups/</code> ディレクトリに保存します。
+            全データ（顧客・車両・整備記録・商談・在庫など）を暗号化してクラウドストレージ
+            （Vercel Blob）に保存します。<strong>毎日 深夜3時に自動でも実行されます。</strong>
           </p>
 
           <Button onClick={handleBackup} disabled={isPending} className="gap-2">
@@ -72,7 +72,7 @@ export default function BackupPage() {
         </section>
 
         <section className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
-          <h2 className="text-base font-semibold">バックアップ一覧</h2>
+          <h2 className="text-base font-semibold">バックアップ一覧（直近30世代を自動保持）</h2>
           {files.length === 0 ? (
             <p className="text-sm text-gray-400">バックアップファイルはまだありません</p>
           ) : (
@@ -92,10 +92,12 @@ export default function BackupPage() {
         <section className="bg-white rounded-lg shadow-sm border p-5 text-sm text-gray-600 space-y-2">
           <h2 className="font-semibold text-gray-800">リストア方法（緊急時）</h2>
           <p>ターミナルから以下を実行してください:</p>
-          <pre className="bg-gray-50 border rounded px-3 py-2 text-xs font-mono overflow-x-auto">
-            npx tsx scripts/restore.ts backups/&#x3C;ファイル名&#x3E;.json
-          </pre>
-          <p className="text-xs text-gray-400">※ 実行前に確認プロンプトが表示されます。</p>
+          <pre className="bg-gray-50 border rounded px-3 py-2 text-xs font-mono overflow-x-auto">{`vercel env pull                          # 復号キーを取得
+vercel blob get backups/<ファイル名> --access private -o backups/<ファイル名>
+npx tsx scripts/restore.ts backups/<ファイル名>`}</pre>
+          <p className="text-xs text-gray-400">
+            ※ 実行前に確認プロンプトが表示されます。.enc ファイルは自動で復号されます。
+          </p>
         </section>
       </main>
     </div>

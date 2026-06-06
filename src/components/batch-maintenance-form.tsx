@@ -8,6 +8,7 @@ import { visitorSearchAction } from "@/app/actions/visitor-search";
 import { batchAddMaintenanceAction } from "@/app/maintenance/batch/actions";
 import type { CustomerSearchResult } from "@/lib/queries/customer-search";
 import type { WorkItem } from "@/lib/queries/maintenance";
+import { todayJst } from "@/lib/date";
 import { Search, X, Trash2, Plus, ChevronRight } from "lucide-react";
 
 type Vehicle = CustomerSearchResult["vehicles"][number];
@@ -30,13 +31,9 @@ type Props = {
   workItems: WorkItem[];
 };
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function BatchMaintenanceForm({ workItems }: Props) {
   const router = useRouter();
-  const [performedAt, setPerformedAt] = useState(today());
+  const [performedAt, setPerformedAt] = useState(todayJst());
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [isSaving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);

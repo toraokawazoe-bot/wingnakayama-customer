@@ -2,7 +2,7 @@
 
 import { db, maintenanceRecords } from "@/db";
 import { maintenanceRecordSchema, type MaintenanceRecordFormData } from "@/lib/schemas/maintenance";
-import { auth } from "@/auth";
+import { requireAuth, assertMaintenanceRecordAccess } from "@/lib/auth-guards";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 
@@ -14,10 +14,11 @@ export async function updateMaintenanceRecordAction(
   recordId: number,
   data: MaintenanceRecordFormData
 ): Promise<UpdateMaintenanceResult> {
-  const session = await auth();
-  if (!session?.user) {
-    return { ok: false, error: "ログインが必要です" };
-  }
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult;
+
+  const accessResult = await assertMaintenanceRecordAccess(recordId);
+  if (!accessResult.ok) return accessResult;
 
   const parsed = maintenanceRecordSchema.safeParse(data);
   if (!parsed.success) {
@@ -31,16 +32,6 @@ export async function updateMaintenanceRecordAction(
   const v = parsed.data;
 
   try {
-    const existing = await db
-      .select({ vehicleId: maintenanceRecords.vehicleId })
-      .from(maintenanceRecords)
-      .where(eq(maintenanceRecords.id, recordId))
-      .limit(1);
-
-    if (existing.length === 0) {
-      return { ok: false, error: "整備記録が見つかりません" };
-    }
-
     await db
       .update(maintenanceRecords)
       .set({
@@ -53,6 +44,7 @@ export async function updateMaintenanceRecordAction(
       .where(eq(maintenanceRecords.id, recordId));
 
     revalidatePath(`/maintenance/${recordId}/edit`);
+    revalidatePath(`/maintenance/${recordId}/receipt`);
     return { ok: true };
   } catch (error) {
     console.error("[updateMaintenanceRecordAction] DB update failed:", error);

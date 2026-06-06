@@ -6,9 +6,15 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isOnLoginPage = nextUrl.pathname.startsWith("/login");
   const isOnAuthApi = nextUrl.pathname.startsWith("/api/auth");
+  const isOnCronApi = nextUrl.pathname.startsWith("/api/cron");
 
   // Auth.jsのAPI（/api/auth/*）は素通し
   if (isOnAuthApi) {
+    return NextResponse.next();
+  }
+
+  // Cron API（/api/cron/*）はルート側で CRON_SECRET の Bearer 認証を行うため素通し
+  if (isOnCronApi) {
     return NextResponse.next();
   }
 
